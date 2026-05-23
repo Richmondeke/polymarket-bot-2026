@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS positions (
     size_usd        REAL    NOT NULL,
     unrealized_pnl  REAL    DEFAULT 0.0,
     strategy        TEXT,
+    end_date        TEXT,
     opened_at       TEXT    NOT NULL,
     updated_at      TEXT,
     is_open         INTEGER DEFAULT 1
@@ -206,6 +207,7 @@ def upsert_position(
     size_shares: float,
     size_usd: float,
     strategy: str = None,
+    end_date: str = None,
 ):
     with _conn() as con:
         existing = con.execute(
@@ -220,10 +222,10 @@ def upsert_position(
             con.execute(
                 """INSERT INTO positions
                    (market_id, market_question, token_id, side, entry_price, current_price,
-                    size_shares, size_usd, strategy, opened_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    size_shares, size_usd, strategy, end_date, opened_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (market_id, market_question, token_id, side.upper(), entry_price, entry_price,
-                 size_shares, size_usd, strategy, _now(), _now()),
+                 size_shares, size_usd, strategy, end_date, _now(), _now()),
             )
 
 

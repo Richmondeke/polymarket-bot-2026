@@ -213,7 +213,8 @@ Do not include any markdown formatting or extra text outside the JSON. Return on
                         outcome=outcome,
                         current_price=market_price,
                         size_usd=config.POSITION_SIZE_USD,
-                        ai_prob=predicted_prob
+                        ai_prob=predicted_prob,
+                        end_date=m.get("endDate"),
                     )
                     
                     time.sleep(1) # rate limit pace

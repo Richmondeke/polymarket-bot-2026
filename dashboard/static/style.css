@@ -226,6 +226,20 @@ tr:hover td {
     color: #ff5562 !important;
 }
 
+/* Countdown urgency colours */
+.countdown-far    { color: #5b8db8; }           /* > 7 days  — muted blue   */
+.countdown-mid    { color: #00d576; }           /* 2–7 days  — green        */
+.countdown-soon   { color: #f5a623; }           /* < 2 days  — amber        */
+.countdown-urgent {                              /* < 1 hour  — flashing red */
+    color: #ff5562;
+    font-weight: 700;
+    animation: blink 1s step-start infinite;
+}
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+}
+
 /* Log Panel */
 .logs-panel {
     max-height: 350px;

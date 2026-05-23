@@ -35,7 +35,8 @@ class OrderManager:
         size_usd: float,
         strategy: str,
         status: str,
-        whale_address: str = None
+        whale_address: str = None,
+        end_date: str = None,
     ):
         """Update DB status, upsert or close positions, and send email alerts."""
         db.update_trade_status(trade_id, status, limit_price)
@@ -71,6 +72,7 @@ class OrderManager:
                 size_shares=size_shares,
                 size_usd=size_usd,
                 strategy=strategy,
+                end_date=end_date,
             )
             
             trade_data = {
@@ -196,6 +198,7 @@ class OrderManager:
         current_price: float,
         size_usd: float,
         ai_prob: float,
+        end_date: str = None,
     ) -> Optional[Dict]:
         """
         Execute a trade based on AI news sentiment arbitrage.
@@ -253,7 +256,8 @@ class OrderManager:
                 size_shares=size_shares,
                 size_usd=size_usd,
                 strategy="news_sentiment",
-                status="filled" if config.DRY_RUN else "open"
+                status="filled" if config.DRY_RUN else "open",
+                end_date=end_date,
             )
 
             with self._lock:
@@ -380,6 +384,7 @@ class OrderManager:
         best_ask: float,
         size_usd: float,
         discount_pct: float = None,
+        end_date: str = None,
     ) -> Optional[Dict]:
         """
         Place a deep discount limit BUY order (stink bid).
@@ -439,7 +444,8 @@ class OrderManager:
                 size_shares=size_shares,
                 size_usd=size_usd,
                 strategy="stink_bid",
-                status="simulated" if config.DRY_RUN else "open"
+                status="simulated" if config.DRY_RUN else "open",
+                end_date=end_date,
             )
             with self._lock:
                 self._open_order_ids[f"stink_{market_id}"] = order_id

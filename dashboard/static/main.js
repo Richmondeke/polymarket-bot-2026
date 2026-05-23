@@ -83,14 +83,17 @@ function updateUI(data) {
         tbody.innerHTML = '';
         data.positions.forEach(p => {
             const row = document.createElement('tr');
+            const endDate = p.end_date || '';
             row.innerHTML = `
-                <td>${p.market_question.substring(0, 35)}...</td>
+                <td title="${p.market_question}">${p.market_question.substring(0, 32)}...</td>
                 <td class="${p.side === 'BUY' ? 'pos' : 'neg'}">${p.side}</td>
                 <td>$${p.entry_price.toFixed(3)}</td>
                 <td>$${p.size_usd.toFixed(2)}</td>
+                <td class="countdown-cell" data-enddate="${endDate}">—</td>
             `;
             tbody.appendChild(row);
         });
+        updateCountdowns();
     }
     if (data.trades) {
         const tbody = document.querySelector('#trades-table tbody');
@@ -275,3 +278,38 @@ killBtn.addEventListener('click', () => {
         }
     });
 });
+
+// ── Live Countdown Engine ──────────────────────────────────────────
+function formatCountdown(endDateStr) {
+    if (!endDateStr) return { text: 'No date', cls: 'neg' };
+    const end = new Date(endDateStr);
+    if (isNaN(end.getTime())) return { text: 'No date', cls: 'neg' };
+    const diffMs = end - Date.now();
+    if (diffMs <= 0) return { text: '⚡ Resolving', cls: 'pos' };
+
+    const totalSecs = Math.floor(diffMs / 1000);
+    const d = Math.floor(totalSecs / 86400);
+    const h = Math.floor((totalSecs % 86400) / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+
+    let text, cls;
+    if (d > 7)  { text = `${d}d ${h}h`;           cls = 'countdown-far'; }
+    else if (d > 1) { text = `${d}d ${h}h ${m}m`; cls = 'countdown-mid'; }
+    else if (d === 1) { text = `1d ${h}h ${m}m`;   cls = 'countdown-soon'; }
+    else if (h > 0) { text = `${h}h ${m}m ${s}s`;  cls = 'countdown-soon'; }
+    else            { text = `${m}m ${s}s`;          cls = 'countdown-urgent'; }
+
+    return { text, cls };
+}
+
+function updateCountdowns() {
+    document.querySelectorAll('.countdown-cell[data-enddate]').forEach(cell => {
+        const { text, cls } = formatCountdown(cell.dataset.enddate);
+        cell.textContent = text;
+        cell.className = `countdown-cell ${cls}`;
+    });
+}
+
+// Tick every second
+setInterval(updateCountdowns, 1000);

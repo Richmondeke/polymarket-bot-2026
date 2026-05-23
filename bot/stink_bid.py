@@ -80,6 +80,7 @@ class StinkBidEngine:
                     best_ask=best_ask,
                     size_usd=config.POSITION_SIZE_USD,
                     discount_pct=config.STINK_BID_DISCOUNT,
+                    end_date=market.get("endDate"),
                 )
                 
                 if resp:
