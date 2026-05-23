@@ -1,0 +1,30 @@
+# Polymarket SDK
+py-clob-client>=0.1.0
+
+# Web3 / Blockchain
+web3>=6.0.0
+
+# Web Framework / Dashboard
+flask>=3.0.0
+flask-socketio>=5.3.0
+eventlet>=0.35.0
+
+# HTTP Requests
+requests>=2.31.0
+urllib3>=2.0.0
+
+# Environment / Config
+python-dotenv>=1.0.0
+
+# Scheduling
+schedule>=1.2.0
+
+# Logging
+loguru>=0.7.0
+
+# Data / Utilities
+python-dateutil>=2.8.0
+pytz>=2024.1
+
+# Optional: AI scoring
+# google-generativeai>=0.5.0

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket Bot Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <div class="terminal">
+        <!-- HEADER -->
+        <header class="header-bar">
+            <div class="stat-group">
+                <span class="label">STATUS</span>
+                <span id="bot-mode" class="value mode-badge">Loading...</span>
+            </div>
+            <div class="stat-group">
+                <span class="label">USDC BAL</span>
+                <span id="current-balance" class="value">$0.00</span>
+            </div>
+            <div class="stat-group">
+                <span class="label">DAILY PNL</span>
+                <span id="daily-pnl" class="value">0.00%</span>
+            </div>
+            <div class="stat-group">
+                <span class="label">DRAWDOWN</span>
+                <span id="drawdown" class="value">0.00%</span>
+            </div>
+            <div class="controls">
+                <button id="kill-switch" class="btn-danger">kill switch</button>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <main class="grid-container">
+            
+            <!-- Chart Panel -->
+            <section class="panel chart-panel">
+                <h2>PORTFOLIO EQUITY</h2>
+                <div class="chart-container">
+                    <canvas id="pnlChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Positions Panel -->
+            <section class="panel">
+                <h2>ACTIVE POSITIONS <span id="pos-count">(0/10)</span></h2>
+                <div class="table-wrapper">
+                    <table id="positions-table">
+                        <thead>
+                            <tr>
+                                <th>Market</th>
+                                <th>Side</th>
+                                <th>Entry</th>
+                                <th>Size</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Trades Panel -->
+            <section class="panel">
+                <h2>RECENT FILLS</h2>
+                <div class="table-wrapper">
+                    <table id="trades-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Market</th>
+                                <th>Type</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Whales Panel -->
+            <section class="panel">
+                <h2>WHALE WATCHLIST</h2>
+                <div class="table-wrapper">
+                    <table id="whales-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Address</th>
+                                <th>Win %</th>
+                                <th>Vol</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <!-- Logs Panel -->
+            <section class="panel logs-panel span-2">
+                <h2>SYSTEM LOGS</h2>
+                <div class="log-container" id="log-container">
+                    <!-- Populated by JS -->
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="static/main.js"></script>
+</body>
+</html>
