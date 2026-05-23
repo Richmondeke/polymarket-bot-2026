@@ -1,0 +1,58 @@
+name: 🤖 Polymarket Bot
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # Every 10 minutes, 24/7
+  workflow_dispatch:           # Manual trigger from GitHub UI anytime
+
+jobs:
+  trade:
+    name: Run Trading Strategies
+    runs-on: ubuntu-latest
+    timeout-minutes: 8         # Safety — kill if stuck
+
+    env:
+      # Database (Supabase PostgreSQL)
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # Polymarket API
+      POLYMARKET_API_KEY:        ${{ secrets.POLYMARKET_API_KEY }}
+      POLYMARKET_API_SECRET:     ${{ secrets.POLYMARKET_API_SECRET }}
+      POLYMARKET_API_PASSPHRASE: ${{ secrets.POLYMARKET_API_PASSPHRASE }}
+      POLYMARKET_WALLET_ADDRESS: ${{ secrets.POLYMARKET_WALLET_ADDRESS }}
+      POLYMARKET_PRIVATE_KEY:    ${{ secrets.POLYMARKET_PRIVATE_KEY }}
+
+      # Trading mode
+      LIVE_TRADING:   ${{ secrets.LIVE_TRADING }}   # set to 'true' when ready
+      DRY_RUN:        ${{ secrets.DRY_RUN }}
+
+      # Email alerts (optional)
+      EMAIL_ADDRESS:      ${{ secrets.EMAIL_ADDRESS }}
+      EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install psycopg2-binary>=2.9.0
+
+      - name: 🤖 Run bot strategies
+        run: python run_bot.py
+        continue-on-error: true   # One bad run never blocks future runs
+
+      - name: 📊 Log run summary
+        if: always()
+        run: |
+          echo "Run completed at $(date -u)"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Triggered by: ${{ github.event_name }}"
