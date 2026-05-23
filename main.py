@@ -56,6 +56,41 @@ def shutdown_handler(sig, frame):
     sys.exit(0)
 
 
+def _backfill_end_dates():
+    """Fetch and store endDate for any open positions that are missing it."""
+    import requests as _req
+    import sqlite3 as _sqlite3
+    from bot import database as db
+    positions = [p for p in db.get_open_positions() if not p.get("end_date")]
+    if not positions:
+        return
+    logger.info(f"[Main] Backfilling end_date for {len(positions)} open position(s)...")
+    con = _sqlite3.connect(config.DB_PATH)
+    for p in positions:
+        mid = p["market_id"]
+        try:
+            # Gamma API requires conditionId as a query param, not path segment
+            r = _req.get(
+                "https://gamma-api.polymarket.com/markets",
+                params={"conditionId": mid},
+                timeout=8
+            )
+            if r.ok:
+                data = r.json()
+                items = data if isinstance(data, list) else data.get("results", [])
+                if items:
+                    end_date = items[0].get("endDate") or items[0].get("endDateIso")
+                    if end_date:
+                        con.execute("UPDATE positions SET end_date=? WHERE market_id=?", (end_date, mid))
+                        con.commit()
+                        logger.info(f"[Main] ✅ end_date set → {end_date} ({mid[:20]}...)")
+        except Exception as e:
+            logger.warning(f"[Main] Could not backfill end_date for {mid}: {e}")
+        time.sleep(0.3)
+    con.close()
+    logger.info("[Main] End date backfill complete.")
+
+
 def main():
     setup_logging()
     logger.info("="*50)
@@ -74,6 +109,9 @@ def main():
     # Initialize milestone alerts based on current starting equity
     status = risk.get_status(balance)
     notifier.init_milestones(status.get("total_equity", balance))
+
+    # Backfill any missing end_dates for open positions (runs in background)
+    threading.Thread(target=_backfill_end_dates, name="EndDateBackfill", daemon=True).start()
 
 
     # 3. Register graceful shutdown
