@@ -37,6 +37,7 @@ def background_emitter():
             # 1. Balances & Risk Status
             balance = clob.get_usdc_balance()
             status = risk.get_status(balance)
+            total_equity = status.get("total_equity", balance)
             socketio.emit('status_update', status)
             
             # 2. Recent Fills / Trades
@@ -51,7 +52,7 @@ def background_emitter():
             whales = db.get_active_whales()
             socketio.emit('whales_update', whales)
 
-            # 5. PnL Graph data
+            # 5. PnL Graph data (plot total equity instead of raw cash)
             history = db.get_pnl_history(days=14)
             history.reverse() # chronological
             labels = [r['date'] for r in history]
@@ -59,12 +60,22 @@ def background_emitter():
             
             # Add today's live point
             if labels and labels[-1] == datetime.now(timezone.utc).strftime("%Y-%m-%d"):
-                data[-1] = balance
+                data[-1] = total_equity
             else:
                 labels.append("Live")
-                data.append(balance)
+                data.append(total_equity)
                 
             socketio.emit('chart_update', {'labels': labels, 'data': data})
+
+            # 6. News & Arbitrage
+            all_events = db.get_recent_events(limit=80)
+            news = [dict(e) for e in all_events if e["event_type"] == "news"]
+            arbitrage = [dict(e) for e in all_events if e["event_type"] == "arbitrage_opportunity"]
+            system_logs = [dict(e) for e in all_events if e["event_type"] not in ("news", "arbitrage_opportunity")]
+            
+            socketio.emit('news_update', news)
+            socketio.emit('arbitrage_update', arbitrage)
+            socketio.emit('logs_update', system_logs)
             
         except Exception as e:
             print(f"[Dashboard] Emitter error: {e}")
@@ -93,8 +104,9 @@ def kill_switch():
 
 @app.route('/api/logs')
 def get_logs():
-    events = db.get_recent_events(limit=50)
-    return jsonify(events)
+    events = db.get_recent_events(limit=100)
+    system_logs = [e for e in events if e["event_type"] not in ("news", "arbitrage_opportunity")]
+    return jsonify(system_logs)
 
 
 @app.route('/api/data')
@@ -102,6 +114,7 @@ def get_dashboard_data():
     try:
         balance = clob.get_usdc_balance()
         status = risk.get_status(balance)
+        total_equity = status.get("total_equity", balance)
         trades = db.get_recent_trades(limit=20)
         positions = db.get_open_positions()
         whales = db.get_active_whales()
@@ -114,12 +127,15 @@ def get_dashboard_data():
         
         # Add today's live point
         if labels and labels[-1] == datetime.now(timezone.utc).strftime("%Y-%m-%d"):
-            data[-1] = balance
+            data[-1] = total_equity
         else:
             labels.append("Live")
-            data.append(balance)
+            data.append(total_equity)
             
-        logs = db.get_recent_events(limit=50)
+        all_events = db.get_recent_events(limit=80)
+        news = [dict(e) for e in all_events if e["event_type"] == "news"]
+        arbitrage = [dict(e) for e in all_events if e["event_type"] == "arbitrage_opportunity"]
+        system_logs = [dict(e) for e in all_events if e["event_type"] not in ("news", "arbitrage_opportunity")]
         
         return jsonify({
             "status": status,
@@ -127,7 +143,9 @@ def get_dashboard_data():
             "positions": positions,
             "whales": whales,
             "chart": {'labels': labels, 'data': data},
-            "logs": logs
+            "logs": system_logs,
+            "news": news,
+            "arbitrage": arbitrage
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

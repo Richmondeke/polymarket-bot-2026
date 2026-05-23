@@ -48,6 +48,11 @@ function updateUI(data) {
         const status = data.status;
         document.getElementById('current-balance').textContent = `$${status.current_balance.toFixed(2)}`;
         
+        // Add new header stats
+        document.getElementById('escrowed-balance').textContent = `$${(status.escrowed_balance || 0).toFixed(2)}`;
+        document.getElementById('positions-value').textContent = `$${(status.positions_value || 0).toFixed(2)}`;
+        document.getElementById('total-equity').textContent = `$${(status.total_equity || 0).toFixed(2)}`;
+        
         const pnlEl = document.getElementById('daily-pnl');
         pnlEl.textContent = `${status.daily_pnl_pct.toFixed(2)}%`;
         pnlEl.className = `value ${status.daily_pnl_pct >= 0 ? 'pos' : 'neg'}`;
@@ -111,6 +116,52 @@ function updateUI(data) {
             tbody.appendChild(row);
         });
     }
+    if (data.news) {
+        const tbody = document.querySelector('#news-table tbody');
+        tbody.innerHTML = '';
+        data.news.forEach(n => {
+            const row = document.createElement('tr');
+            let payload = {};
+            try {
+                payload = JSON.parse(n.data || '{}');
+            } catch (e) {}
+            
+            const q = payload.question || n.message;
+            const prob = payload.probability ? `${(payload.probability * 100).toFixed(0)}%` : '50%';
+            const sentClass = payload.sentiment === 'positive' ? 'pos' : (payload.sentiment === 'negative' ? 'neg' : '');
+            
+            row.innerHTML = `
+                <td title="${q}">${q.substring(0, 30)}...</td>
+                <td>${prob}</td>
+                <td class="${sentClass}">${payload.sentiment || 'neutral'}</td>
+                <td title="${payload.reasoning || ''}">${(payload.reasoning || '').substring(0, 40)}...</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    if (data.arbitrage) {
+        const tbody = document.querySelector('#arbitrage-table tbody');
+        tbody.innerHTML = '';
+        data.arbitrage.forEach(a => {
+            const row = document.createElement('tr');
+            let payload = {};
+            try {
+                payload = JSON.parse(a.data || '{}');
+            } catch (e) {}
+            
+            const title = payload.event_title || a.message;
+            const yesSum = payload.yes_sum ? payload.yes_sum.toFixed(3) : '1.000';
+            const margin = payload.estimated_profit_pct ? `${payload.estimated_profit_pct}%` : '0%';
+            
+            row.innerHTML = `
+                <td title="${title}">${title.substring(0, 30)}...</td>
+                <td>${yesSum}</td>
+                <td>${payload.basket_type || 'NO_BASKET'}</td>
+                <td class="pos">${margin}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
     if (data.logs) {
         const container = document.getElementById('log-container');
         container.innerHTML = '';
@@ -149,6 +200,9 @@ try {
     socket.on('positions_update', (positions) => { if (!usePolling) updateUI({ positions: positions }); });
     socket.on('trades_update', (trades) => { if (!usePolling) updateUI({ trades: trades }); });
     socket.on('whales_update', (whales) => { if (!usePolling) updateUI({ whales: whales }); });
+    socket.on('news_update', (news) => { if (!usePolling) updateUI({ news: news }); });
+    socket.on('arbitrage_update', (arbitrage) => { if (!usePolling) updateUI({ arbitrage: arbitrage }); });
+    socket.on('logs_update', (logs) => { if (!usePolling) updateUI({ logs: logs }); });
 } catch (e) {
     console.log("SocketIO not available, using HTTP Polling");
     usePolling = true;

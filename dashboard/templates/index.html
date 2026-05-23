@@ -20,8 +20,20 @@
                 <span id="bot-mode" class="value mode-badge">Loading...</span>
             </div>
             <div class="stat-group">
-                <span class="label">USDC BAL</span>
+                <span class="label">USDC CASH</span>
                 <span id="current-balance" class="value">$0.00</span>
+            </div>
+            <div class="stat-group">
+                <span class="label">ESCROWED</span>
+                <span id="escrowed-balance" class="value">$0.00</span>
+            </div>
+            <div class="stat-group">
+                <span class="label">POSITIONS</span>
+                <span id="positions-value" class="value">$0.00</span>
+            </div>
+            <div class="stat-group">
+                <span class="label">TOTAL EQUITY</span>
+                <span id="total-equity" class="value">$0.00</span>
             </div>
             <div class="stat-group">
                 <span class="label">DAILY PNL</span>
@@ -99,6 +111,46 @@
                                 <th>Address</th>
                                 <th>Win %</th>
                                 <th>Vol</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- News Sentiment Panel -->
+            <section class="panel">
+                <h2>NEWS SENTIMENT ANALYSIS</h2>
+                <div class="table-wrapper">
+                    <table id="news-table">
+                        <thead>
+                            <tr>
+                                <th>Market</th>
+                                <th>AI Prob</th>
+                                <th>Sent</th>
+                                <th>Reasoning</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Arbitrage Monitor Panel -->
+            <section class="panel">
+                <h2>ARBITRAGE MONITOR</h2>
+                <div class="table-wrapper">
+                    <table id="arbitrage-table">
+                        <thead>
+                            <tr>
+                                <th>Event</th>
+                                <th>YES Sum</th>
+                                <th>Type</th>
+                                <th>Profit Margin</th>
                             </tr>
                         </thead>
                         <tbody>

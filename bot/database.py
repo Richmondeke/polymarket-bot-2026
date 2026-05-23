@@ -157,6 +157,36 @@ def update_trade_status(trade_id: int, status: str, fill_price: float = None):
         )
 
 
+def update_trade_status_by_market(market_id: str, status: str):
+    with _conn() as con:
+        con.execute(
+            "UPDATE trades SET status=? WHERE market_id=? AND status IN ('open', 'simulated')",
+            (status, market_id)
+        )
+
+
+def get_escrowed_balance() -> float:
+    """Return total USDC locked in active/pending orders (open/simulated)."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT SUM(price * size_shares) FROM trades WHERE status IN ('open', 'simulated')"
+        ).fetchone()
+        return float(row[0] or 0.0)
+
+
+def get_positions_market_value() -> float:
+    """Return total market value of all open positions."""
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT current_price, entry_price, size_shares FROM positions WHERE is_open=1"
+        ).fetchall()
+        val = 0.0
+        for r in rows:
+            p = r["current_price"] if r["current_price"] is not None else r["entry_price"]
+            val += p * r["size_shares"]
+        return val
+
+
 def get_recent_trades(limit: int = 50) -> List[Dict]:
     with _conn() as con:
         rows = con.execute(

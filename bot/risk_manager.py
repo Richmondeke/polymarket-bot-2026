@@ -70,17 +70,22 @@ class RiskManager:
         if len(open_positions) >= config.MAX_OPEN_POSITIONS:
             return False, f"Max open positions reached ({config.MAX_OPEN_POSITIONS})"
 
-        # 4. Insufficient balance
+        # 4. Insufficient balance (must have actual cash)
         if size_usd > current_balance * 0.95:
-            return False, f"Insufficient balance: ${current_balance:.2f} for ${size_usd:.2f} trade"
+            return False, f"Insufficient cash: ${current_balance:.2f} for ${size_usd:.2f} trade"
 
-        # 5. Daily stop-loss
-        daily_ok, daily_msg = self._check_daily_stop_loss(current_balance)
+        # Calculate Total Equity for risk limits
+        escrowed = db.get_escrowed_balance()
+        positions_val = db.get_positions_market_value()
+        total_equity = current_balance + escrowed + positions_val
+
+        # 5. Daily stop-loss (uses total equity)
+        daily_ok, daily_msg = self._check_daily_stop_loss(total_equity)
         if not daily_ok:
             return False, daily_msg
 
-        # 6. Max drawdown
-        drawdown_ok, drawdown_msg = self._check_max_drawdown(current_balance)
+        # 6. Max drawdown (uses total equity)
+        drawdown_ok, drawdown_msg = self._check_max_drawdown(total_equity)
         if not drawdown_ok:
             return False, drawdown_msg
 
@@ -211,17 +216,22 @@ class RiskManager:
 
     def get_status(self, current_balance: float) -> dict:
         """Return a snapshot of current risk metrics for the dashboard."""
+        escrowed = db.get_escrowed_balance()
+        positions_val = db.get_positions_market_value()
+        total_equity = current_balance + escrowed + positions_val
+
         history = db.get_pnl_history(days=90)
         peak = max(
             (r.get("ending_balance") or 100 for r in history),
             default=100,
         )
-        drawdown_pct = (peak - current_balance) / max(peak, 1) * 100
+        peak = max(peak, self._daily_start_balance or 100.0, total_equity)
+        drawdown_pct = (peak - total_equity) / max(peak, 1) * 100
 
         daily_pnl_pct = 0.0
         if self._daily_start_balance and self._daily_start_balance > 0:
             daily_pnl_pct = (
-                (current_balance - self._daily_start_balance)
+                (total_equity - self._daily_start_balance)
                 / self._daily_start_balance * 100
             )
 
@@ -230,6 +240,9 @@ class RiskManager:
             "dry_run": config.DRY_RUN,
             "live_trading": config.LIVE_TRADING,
             "current_balance": current_balance,
+            "escrowed_balance": round(escrowed, 2),
+            "positions_value": round(positions_val, 2),
+            "total_equity": round(total_equity, 2),
             "daily_start_balance": self._daily_start_balance,
             "daily_pnl_pct": round(daily_pnl_pct, 2),
             "daily_stop_loss_pct": config.DAILY_STOP_LOSS_PCT,
