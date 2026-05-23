@@ -12,7 +12,11 @@ jobs:
     timeout-minutes: 8         # Safety — kill if stuck
 
     env:
-      # Database (Supabase PostgreSQL)
+      # ── Database: Firebase Firestore (primary) ──
+      FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+      GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+
+      # ── Database: Supabase PostgreSQL (fallback) ──
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       # Polymarket API
@@ -44,7 +48,11 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install psycopg2-binary>=2.9.0
+
+      - name: 🔑 Set up Firebase credentials
+        run: |
+          echo "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > /tmp/firebase_sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase_sa.json" >> $GITHUB_ENV
 
       - name: 🤖 Run bot strategies
         run: python run_bot.py

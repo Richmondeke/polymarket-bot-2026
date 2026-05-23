@@ -1,7 +1,8 @@
 """
-bot/database.py — Dual-mode persistence layer.
-Uses SQLite locally, PostgreSQL (Supabase) when DATABASE_URL is set.
-All function signatures are identical in both modes.
+bot/database.py — Tri-mode persistence layer.
+Firestore (Firebase) when FIREBASE_PROJECT_ID is set.
+PostgreSQL (Supabase) when DATABASE_URL is set.
+SQLite locally (default).
 """
 import os
 import json
@@ -13,8 +14,25 @@ from loguru import logger
 from bot import config
 
 # ── Mode detection ──────────────────────────────────────────────────
-DATABASE_URL = os.getenv("DATABASE_URL")
-USE_POSTGRES = bool(DATABASE_URL)
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID")
+DATABASE_URL        = os.getenv("DATABASE_URL")
+USE_FIREBASE        = bool(FIREBASE_PROJECT_ID)
+USE_POSTGRES        = bool(DATABASE_URL) and not USE_FIREBASE
+
+# ── Firebase routing (proxy all calls to firebase_db) ───────────────
+if USE_FIREBASE:
+    from bot.firebase_db import (  # noqa — re-export everything
+        init_db, log_trade, update_trade_status, update_trade_status_by_market,
+        get_escrowed_balance, get_positions_market_value, get_recent_trades,
+        upsert_position, close_position, update_position_prices,
+        get_open_positions, position_exists, get_total_realized_pnl,
+        upsert_daily_pnl, get_pnl_history, get_today_pnl, get_initial_balance,
+        upsert_whale, get_active_whales, deactivate_all_whales,
+        log_event, get_recent_events,
+    )
+    logger.info("[DB] Mode: Firebase Firestore")
+else:
+    pass  # continue below with SQLite / PostgreSQL
 
 if USE_POSTGRES:
     import psycopg2
