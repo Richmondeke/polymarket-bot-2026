@@ -145,6 +145,11 @@ Do not include any markdown formatting or extra text outside the JSON. Return on
                 if not market_id:
                     continue
 
+                # Filter by resolution time
+                if not config.is_market_fast_resolving(m):
+                    continue
+
+
                 # Skip if position already open
                 if db.position_exists(market_id):
                     continue

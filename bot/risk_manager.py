@@ -250,7 +250,9 @@ class RiskManager:
             "max_drawdown_pct": config.MAX_DRAWDOWN_PCT,
             "open_positions": len(db.get_open_positions()),
             "max_open_positions": config.MAX_OPEN_POSITIONS,
+            "total_realized_pnl": round(db.get_total_realized_pnl(), 2),
         }
+
 
 
 # Singleton instance

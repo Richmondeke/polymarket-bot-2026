@@ -78,6 +78,8 @@ KELLY_FRACTION: float = _get_float("KELLY_FRACTION", 0.25)
 DAILY_STOP_LOSS_PCT: float = _get_float("DAILY_STOP_LOSS_PCT", 5.0)
 MAX_DRAWDOWN_PCT: float = _get_float("MAX_DRAWDOWN_PCT", 15.0)
 MAX_OPEN_POSITIONS: int = _get_int("MAX_OPEN_POSITIONS", 10)
+MAX_RESOLUTION_DAYS: int = _get_int("MAX_RESOLUTION_DAYS", 0) # 0 means unlimited, >0 filters for short-term resolution
+
 
 # ── Whale Tracker ───────────────────────────────────────────────────
 TOP_N_WHALES: int = _get_int("TOP_N_WHALES", 5)
@@ -99,6 +101,13 @@ DASHBOARD_HOST: str = _get("DASHBOARD_HOST", "0.0.0.0")
 # ── AI Scoring ──────────────────────────────────────────────────────
 GEMINI_API_KEY: str = _get("GEMINI_API_KEY") or ""
 AI_SCORING_ENABLED: bool = _get_bool("AI_SCORING_ENABLED", False)
+
+# ── Email Notifications ──────────────────────────────────────────────
+SMTP_SERVER: str = _get("SMTP_SERVER") or ""
+SMTP_PORT: int = _get_int("SMTP_PORT", 587)
+SMTP_USERNAME: str = _get("SMTP_USERNAME") or ""
+SMTP_PASSWORD: str = _get("SMTP_PASSWORD") or ""
+NOTIFICATION_EMAIL: str = _get("NOTIFICATION_EMAIL") or ""
 
 # ── Logging ─────────────────────────────────────────────────────────
 LOG_LEVEL: str = _get("LOG_LEVEL", "INFO").upper()
@@ -135,3 +144,23 @@ def validate():
     logger.info(f"[Config] Position size: ${POSITION_SIZE_USD} | Stop-loss: {DAILY_STOP_LOSS_PCT}%")
     logger.info(f"[Config] Whales: top-{TOP_N_WHALES} (min {WHALE_MIN_WIN_RATE}% win rate)")
     logger.info(f"[Config] Stink bid: {'enabled' if STINK_BID_ENABLED else 'disabled'} @ -{STINK_BID_DISCOUNT}%")
+
+
+def is_market_fast_resolving(market: dict) -> bool:
+    """Return True if market resolves within MAX_RESOLUTION_DAYS. Always True if MAX_RESOLUTION_DAYS is 0."""
+    if not MAX_RESOLUTION_DAYS:
+        return True
+    
+    end_date_str = market.get("endDate")
+    if not end_date_str:
+        return False
+        
+    from datetime import datetime, timezone, timedelta
+    try:
+        # Standard ISO format: '2026-05-25T00:00:00Z'
+        end_dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+        time_left = end_dt - datetime.now(timezone.utc)
+        return time_left <= timedelta(days=MAX_RESOLUTION_DAYS)
+    except Exception:
+        return False
+

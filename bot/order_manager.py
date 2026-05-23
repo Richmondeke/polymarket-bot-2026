@@ -23,6 +23,75 @@ class OrderManager:
         self._open_order_ids: Dict[str, str] = {}  # market_id → order_id
         self._lock = threading.Lock()
 
+    def _handle_post_execution(
+        self,
+        trade_id: int,
+        market_id: str,
+        market_question: str,
+        token_id: str,
+        side: str,
+        limit_price: float,
+        size_shares: float,
+        size_usd: float,
+        strategy: str,
+        status: str,
+        whale_address: str = None
+    ):
+        """Update DB status, upsert or close positions, and send email alerts."""
+        db.update_trade_status(trade_id, status, limit_price)
+
+        from bot.notifier import notifier
+
+        # Check if we have an open position to resolve or sell
+        if side.upper() == "SELL":
+            open_positions = db.get_open_positions()
+            existing = next((p for p in open_positions if p["market_id"] == market_id), None)
+            if existing:
+                entry_price = existing["entry_price"]
+                realized_pnl = (limit_price - entry_price) * size_shares
+                db.close_position(market_id, exit_price=limit_price)
+                logger.info(f"[Orders] Closed position in '{market_question}' realizing PnL: ${realized_pnl:.2f}")
+                notifier.send_profit_alert(
+                    market_question=market_question,
+                    realized_pnl=realized_pnl,
+                    size_usd=existing["size_usd"],
+                    entry_price=entry_price,
+                    exit_price=limit_price,
+                    strategy=strategy
+                )
+            else:
+                db.close_position(market_id, exit_price=limit_price)
+        else:
+            db.upsert_position(
+                market_id=market_id,
+                market_question=market_question,
+                token_id=token_id,
+                side=side,
+                entry_price=limit_price,
+                size_shares=size_shares,
+                size_usd=size_usd,
+                strategy=strategy,
+            )
+            
+            trade_data = {
+                "side": side,
+                "size_shares": size_shares,
+                "price": limit_price,
+                "strategy": strategy,
+                "market_question": market_question,
+                "dry_run": config.DRY_RUN
+            }
+            notifier.send_trade_alert(trade_data)
+
+        # Trigger milestone check on any trade action
+        try:
+            balance = clob.get_usdc_balance()
+            status_data = risk.get_status(balance)
+            notifier.check_milestones(status_data.get("total_equity", balance))
+        except Exception as e:
+            logger.error(f"[Orders] Milestone check error: {e}")
+
+
     # ── Main entry point for copy trades ────────────────────────────
 
     def place_copy_order(
@@ -85,18 +154,18 @@ class OrderManager:
 
         if resp:
             order_id = resp.get("order_id") or resp.get("id") or f"sim-{trade_id}"
-            db.update_trade_status(trade_id, "filled" if config.DRY_RUN else "open", limit_price)
-
-            # Record position
-            db.upsert_position(
+            self._handle_post_execution(
+                trade_id=trade_id,
                 market_id=market_id,
                 market_question=market_question,
                 token_id=token_id,
                 side=side,
-                entry_price=limit_price,
+                limit_price=limit_price,
                 size_shares=size_shares,
                 size_usd=size_usd,
                 strategy="whale_copy",
+                status="filled" if config.DRY_RUN else "open",
+                whale_address=whale_address
             )
 
             with self._lock:
@@ -174,17 +243,17 @@ class OrderManager:
 
         if resp:
             order_id = resp.get("order_id") or resp.get("id") or f"sent-{trade_id}"
-            db.update_trade_status(trade_id, "filled" if config.DRY_RUN else "open", limit_price)
-
-            db.upsert_position(
+            self._handle_post_execution(
+                trade_id=trade_id,
                 market_id=market_id,
                 market_question=question_with_outcome,
                 token_id=token_id,
                 side=side,
-                entry_price=limit_price,
+                limit_price=limit_price,
                 size_shares=size_shares,
                 size_usd=size_usd,
                 strategy="news_sentiment",
+                status="filled" if config.DRY_RUN else "open"
             )
 
             with self._lock:
@@ -269,16 +338,17 @@ class OrderManager:
             )
 
             if resp:
-                db.update_trade_status(trade_id, "filled" if config.DRY_RUN else "open", price)
-                db.upsert_position(
+                self._handle_post_execution(
+                    trade_id=trade_id,
                     market_id=m_id,
                     market_question=question_with_outcome,
                     token_id=t_id,
                     side="BUY",
-                    entry_price=price,
+                    limit_price=price,
                     size_shares=shares,
                     size_usd=leg_cost,
                     strategy="arbitrage",
+                    status="filled" if config.DRY_RUN else "open"
                 )
                 order_id = resp.get("order_id") or resp.get("id") or f"arb-{trade_id}"
                 with self._lock:
@@ -359,7 +429,18 @@ class OrderManager:
 
         if resp:
             order_id = resp.get("order_id") or resp.get("id") or f"stink-{trade_id}"
-            db.update_trade_status(trade_id, "open" if not config.DRY_RUN else "simulated", stink_price)
+            self._handle_post_execution(
+                trade_id=trade_id,
+                market_id=market_id,
+                market_question=market_question,
+                token_id=token_id,
+                side="BUY",
+                limit_price=stink_price,
+                size_shares=size_shares,
+                size_usd=size_usd,
+                strategy="stink_bid",
+                status="simulated" if config.DRY_RUN else "open"
+            )
             with self._lock:
                 self._open_order_ids[f"stink_{market_id}"] = order_id
 

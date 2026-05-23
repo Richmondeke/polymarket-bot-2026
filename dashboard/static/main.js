@@ -60,6 +60,12 @@ function updateUI(data) {
         document.getElementById('drawdown').textContent = `-${status.drawdown_pct.toFixed(2)}%`;
         document.getElementById('pos-count').textContent = `(${status.open_positions}/${status.max_open_positions})`;
 
+        // Withdrawable Cash = cumulative realized P&L from resolved markets
+        const realizedPnl = status.total_realized_pnl || 0;
+        const realizedEl = document.getElementById('realized-pnl');
+        realizedEl.textContent = `$${realizedPnl.toFixed(2)}`;
+        realizedEl.className = `value ${realizedPnl >= 0 ? 'pos' : 'neg'}`;
+
         const badge = document.getElementById('bot-mode');
         if (status.kill_switch) {
             badge.textContent = 'killed';

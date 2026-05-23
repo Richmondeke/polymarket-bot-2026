@@ -45,6 +45,11 @@ class StinkBidEngine:
                 if not market_id:
                     continue
 
+                # Filter by resolution time
+                if not config.is_market_fast_resolving(market):
+                    continue
+
+
                 # Get token ID for 'Yes' outcome
                 token_id = gamma.get_token_id_for_outcome(market, "Yes")
                 if not token_id:

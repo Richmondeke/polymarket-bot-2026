@@ -40,6 +40,11 @@ def background_emitter():
             total_equity = status.get("total_equity", balance)
             socketio.emit('status_update', status)
             
+            # Check for P&L milestone hits
+            from bot.notifier import notifier
+            notifier.check_milestones(total_equity)
+
+            
             # 2. Recent Fills / Trades
             trades = db.get_recent_trades(limit=20)
             socketio.emit('trades_update', trades)

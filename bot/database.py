@@ -267,6 +267,16 @@ def position_exists(market_id: str) -> bool:
     return row is not None
 
 
+def get_total_realized_pnl() -> float:
+    """Return sum of realized P&L from all resolved/closed positions."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT SUM((current_price - entry_price) * size_shares) FROM positions WHERE is_open=0"
+        ).fetchone()
+        return float(row[0] or 0.0)
+
+
+
 # ── Daily P&L ────────────────────────────────────────────────────────
 
 def upsert_daily_pnl(
@@ -311,6 +321,14 @@ def get_today_pnl() -> Optional[Dict]:
     with _conn() as con:
         row = con.execute("SELECT * FROM daily_pnl WHERE date=?", (today,)).fetchone()
     return dict(row) if row else None
+
+
+def get_initial_balance() -> float:
+    """Return the starting balance of the first day recorded in DB, default to 100.0."""
+    with _conn() as con:
+        row = con.execute("SELECT starting_balance FROM daily_pnl ORDER BY date ASC LIMIT 1").fetchone()
+        return float(row[0]) if row and row[0] is not None else 100.0
+
 
 
 # ── Whale Watchlist ──────────────────────────────────────────────────
