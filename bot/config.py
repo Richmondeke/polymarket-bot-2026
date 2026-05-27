@@ -96,7 +96,7 @@ STINK_BID_MIN_PROB: float = _get_float("STINK_BID_MIN_PROB", 0.65)
 STINK_BID_MAX_OPEN: int = _get_int("STINK_BID_MAX_OPEN", 3)
 
 # ── Dashboard ───────────────────────────────────────────────────────
-DASHBOARD_PORT: int = _get_int("DASHBOARD_PORT", 5000)
+DASHBOARD_PORT: int = _get_int("PORT", _get_int("DASHBOARD_PORT", 5000))
 DASHBOARD_HOST: str = _get("DASHBOARD_HOST", "0.0.0.0")
 
 # ── AI Scoring ──────────────────────────────────────────────────────
