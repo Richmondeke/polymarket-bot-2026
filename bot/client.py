@@ -197,10 +197,8 @@ class ClobClientWrapper:
 
         _clob_limiter.wait()
         try:
-            from py_clob_client.clob_types import OrderArgs, OrderType, PartialCreateOrderOptions
+            from py_clob_client.clob_types import OrderArgs, PartialCreateOrderOptions
             from py_clob_client.order_builder.constants import BUY, SELL
-            
-            o_type = OrderType.POST_ONLY if post_only else OrderType.GTC
 
             resp = self.client.create_and_post_order(
                 order_args=OrderArgs(
@@ -210,7 +208,6 @@ class ClobClientWrapper:
                     size=size_shares,
                 ),
                 options=PartialCreateOrderOptions(tick_size=tick_size),
-                order_type=o_type,
             )
             logger.info(f"[CLOB] ✅ Order placed: {resp}")
             return resp
