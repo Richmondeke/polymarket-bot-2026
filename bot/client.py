@@ -304,45 +304,60 @@ class GammaClient:
     def get_token_id_for_outcome(self, market: Dict, outcome: str = "Yes") -> Optional[str]:
         """Extract token_id for a specific outcome (Yes/No)."""
         try:
-            # Try new clobTokenIds format (serialized JSON string array)
             clob_token_ids = market.get("clobTokenIds")
             if clob_token_ids:
-                import json
-                ids = json.loads(clob_token_ids)
-                if len(ids) > 1:
+                if isinstance(clob_token_ids, str):
+                    import json
+                    try:
+                        ids = json.loads(clob_token_ids)
+                    except:
+                        # try to fix single quotes
+                        ids = json.loads(clob_token_ids.replace("'", "\""))
+                elif isinstance(clob_token_ids, list):
+                    ids = clob_token_ids
+                else:
+                    ids = []
+
+                if isinstance(ids, list) and len(ids) > 1:
                     return ids[0] if outcome.lower() == "yes" else ids[1]
-                elif len(ids) > 0:
+                elif isinstance(ids, list) and len(ids) > 0:
                     return ids[0]
 
-            # Fallback legacy tokens list
             tokens = market.get("tokens", [])
             for token in tokens:
-                if token.get("outcome", "").lower() == outcome.lower():
+                if isinstance(token, dict) and token.get("outcome", "").lower() == outcome.lower():
                     return token.get("token_id")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Error parsing token_id for {market.get('id')}: {e}")
         return None
 
     def get_implied_probability(self, market: Dict, outcome: str = "Yes") -> Optional[float]:
         """Get implied probability for an outcome from market data."""
         try:
-            # Try new outcomePrices format (serialized JSON string array)
             prices_str = market.get("outcomePrices")
             if prices_str:
-                import json
-                prices = json.loads(prices_str)
-                if len(prices) > 1:
+                if isinstance(prices_str, str):
+                    import json
+                    try:
+                        prices = json.loads(prices_str)
+                    except:
+                        prices = json.loads(prices_str.replace("'", "\""))
+                elif isinstance(prices_str, list):
+                    prices = prices_str
+                else:
+                    prices = []
+
+                if isinstance(prices, list) and len(prices) > 1:
                     return float(prices[0]) if outcome.lower() == "yes" else float(prices[1])
-                elif len(prices) > 0:
+                elif isinstance(prices, list) and len(prices) > 0:
                     return float(prices[0])
 
-            # Fallback legacy tokens list
             tokens = market.get("tokens", [])
             for token in tokens:
-                if token.get("outcome", "").lower() == outcome.lower():
-                    return float(token.get("price", 0.5))
-        except Exception:
-            pass
+                if isinstance(token, dict) and token.get("outcome", "").lower() == outcome.lower():
+                    return float(token.get("price", 0.0))
+        except Exception as e:
+            logger.error(f"Error parsing implied prob for {market.get('id')}: {e}")
         return None
 
 
