@@ -79,7 +79,7 @@ KELLY_FRACTION: float = _get_float("KELLY_FRACTION", 0.25)
 DAILY_STOP_LOSS_PCT: float = _get_float("DAILY_STOP_LOSS_PCT", 5.0)
 MAX_DRAWDOWN_PCT: float = _get_float("MAX_DRAWDOWN_PCT", 15.0)
 MAX_OPEN_POSITIONS: int = _get_int("MAX_OPEN_POSITIONS", 10)
-MAX_RESOLUTION_DAYS: int = _get_int("MAX_RESOLUTION_DAYS", 0) # 0 means unlimited, >0 filters for short-term resolution
+MAX_RESOLUTION_DAYS: float = _get_float("MAX_RESOLUTION_DAYS", 0.0) # 0 means unlimited, >0 filters for short-term resolution
 
 
 # ── Whale Tracker ───────────────────────────────────────────────────
