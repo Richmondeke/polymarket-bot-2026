@@ -10,6 +10,10 @@ from bot.order_manager import orders
 from bot.stink_bid import stink_bid_engine
 from bot.news_sentiment import news_engine
 from bot.arbitrage_engine import arbitrage_engine
+from bot.cross_line_arb import cross_line_engine
+from bot.repricing_engine import repricing_engine
+from bot.hedge_engine import hedge_engine
+from bot.grid_engine import grid_engine
 from bot.risk_manager import risk
 
 
@@ -64,12 +68,20 @@ class StrategyEngine:
         stink_bid_engine.start()
         news_engine.start()
         arbitrage_engine.start()
+        cross_line_engine.start()
+        repricing_engine.start()
+        hedge_engine.start()
+        grid_engine.start()
         
         self._running = True
         logger.info("[Strategy] Engine started")
 
     def stop(self):
         self._running = False
+        grid_engine.stop()
+        hedge_engine.stop()
+        repricing_engine.stop()
+        cross_line_engine.stop()
         arbitrage_engine.stop()
         news_engine.stop()
         stink_bid_engine.stop()

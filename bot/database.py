@@ -81,7 +81,7 @@ def _conn():
 
 def _fetchall(con, sql: str, params: tuple = ()) -> List[Dict]:
     """Execute a SELECT and return list of dicts regardless of DB mode."""
-    cur = con.cursor() if USE_POSTGRES else con
+    cur = con.cursor()
     cur.execute(_q(sql), params)
     rows = cur.fetchall()
     return [dict(r) for r in rows]
@@ -89,7 +89,7 @@ def _fetchall(con, sql: str, params: tuple = ()) -> List[Dict]:
 
 def _fetchone(con, sql: str, params: tuple = ()) -> Optional[Dict]:
     """Execute a SELECT and return one dict or None."""
-    cur = con.cursor() if USE_POSTGRES else con
+    cur = con.cursor()
     cur.execute(_q(sql), params)
     row = cur.fetchone()
     return dict(row) if row else None
@@ -97,7 +97,7 @@ def _fetchone(con, sql: str, params: tuple = ()) -> Optional[Dict]:
 
 def _execute(con, sql: str, params: tuple = ()):
     """Execute a write statement."""
-    cur = con.cursor() if USE_POSTGRES else con
+    cur = con.cursor()
     cur.execute(_q(sql), params)
     return cur
 
@@ -369,13 +369,19 @@ def upsert_position(
 ):
     with _conn() as con:
         existing = _fetchone(con,
-            "SELECT id FROM positions WHERE market_id=? AND is_open=1", (market_id,)
+            "SELECT id, is_open FROM positions WHERE market_id=?", (market_id,)
         )
         if existing:
-            _execute(con,
-                "UPDATE positions SET current_price=?, updated_at=? WHERE market_id=? AND is_open=1",
-                (entry_price, _now(), market_id),
-            )
+            if existing.get("is_open", 1) == 1:
+                _execute(con,
+                    "UPDATE positions SET current_price=?, updated_at=? WHERE market_id=?",
+                    (entry_price, _now(), market_id),
+                )
+            else:
+                _execute(con,
+                    "UPDATE positions SET is_open=1, side=?, entry_price=?, current_price=?, size_shares=?, size_usd=?, strategy=?, opened_at=?, updated_at=? WHERE market_id=?",
+                    (side.upper(), entry_price, entry_price, size_shares, size_usd, strategy, _now(), _now(), market_id),
+                )
         else:
             _execute(con,
                 """INSERT INTO positions

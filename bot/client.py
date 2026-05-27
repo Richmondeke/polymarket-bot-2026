@@ -153,8 +153,20 @@ class ClobClientWrapper:
         if not self.client:
             return 0.0
         try:
-            balance = self.client.get_balance()
-            return float(balance or 0)
+            from web3 import Web3
+            w3 = Web3(Web3.HTTPProvider(config.POLYGON_RPC_URL))
+            abi = [{"constant":True,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]
+            wallet = w3.to_checksum_address(config.POLYGON_WALLET_ADDRESS)
+            
+            # Check Bridged USDC (USDC.e)
+            usdc_e = w3.eth.contract(address=w3.to_checksum_address("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"), abi=abi)
+            bal_e = usdc_e.functions.balanceOf(wallet).call()
+            
+            # Check Native USDC
+            usdc_n = w3.eth.contract(address=w3.to_checksum_address("0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"), abi=abi)
+            bal_n = usdc_n.functions.balanceOf(wallet).call()
+            
+            return (float(bal_e) + float(bal_n)) / 10**6
         except Exception as e:
             logger.error(f"[CLOB] get_usdc_balance error: {e}")
             return 0.0
@@ -166,10 +178,11 @@ class ClobClientWrapper:
         price: float,
         size_shares: float,
         tick_size: str = "0.01",
+        post_only: bool = False,
     ) -> Optional[Dict]:
-        """Place a GTC limit order. Returns order response dict."""
+        """Place a limit order. Returns order response dict."""
         if config.DRY_RUN:
-            logger.info(f"[CLOB] 🟡 DRY RUN — would place {side} limit @ {price:.3f} for {size_shares:.2f} shares")
+            logger.info(f"[CLOB] 🟡 DRY RUN — would place {side} limit @ {price:.3f} for {size_shares:.2f} shares (post_only={post_only})")
             # Update virtual balance for dry-run simulation
             cost = price * size_shares
             if side.upper() == "BUY":
@@ -185,6 +198,9 @@ class ClobClientWrapper:
         _clob_limiter.wait()
         try:
             from py_clob_client import OrderArgs, Side, OrderType, PartialCreateOrderOptions
+            
+            o_type = OrderType.POST_ONLY if post_only else OrderType.GTC
+
             resp = self.client.create_and_post_order(
                 order_args=OrderArgs(
                     token_id=token_id,
@@ -193,7 +209,7 @@ class ClobClientWrapper:
                     size=size_shares,
                 ),
                 options=PartialCreateOrderOptions(tick_size=tick_size),
-                order_type=OrderType.GTC,
+                order_type=o_type,
             )
             logger.info(f"[CLOB] ✅ Order placed: {resp}")
             return resp

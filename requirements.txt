@@ -34,3 +34,4 @@ psycopg2-binary>=2.9.0
 
 # Firebase / Firestore (cloud DB support)
 firebase-admin>=6.0.0
+gunicorn>=21.0.0

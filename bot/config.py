@@ -43,6 +43,7 @@ def _get_bool(key: str, default: bool = False) -> bool:
 
 # ── Wallet / Blockchain ─────────────────────────────────────────────
 POLYGON_PRIVATE_KEY: str = _get("POLYGON_PRIVATE_KEY", required=False) or ""
+POLYGON_WALLET_ADDRESS: str = _get("POLYGON_WALLET_ADDRESS", required=False) or ""
 POLYGON_RPC_URL: str = _get(
     "POLYGON_RPC_URL",
     "https://polygon-rpc.com",

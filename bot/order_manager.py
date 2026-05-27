@@ -458,6 +458,78 @@ class OrderManager:
 
         return resp
 
+    # ── Microstructure Strategic order placement ───────────────────────
+
+    def place_strategic_limit_order(
+        self,
+        market_id: str,
+        market_question: str,
+        token_id: str,
+        side: str,
+        price: float,
+        size_usd: float,
+        strategy: str,
+        post_only: bool = True,
+        notes: str = "",
+    ) -> Optional[Dict]:
+        """
+        Place a strict limit order for microstructure strategies.
+        Defaults to post_only=True to ensure we never cross the spread unfavorably.
+        """
+        if risk.kill_switch_active:
+            return None
+
+        balance = clob.get_usdc_balance()
+        allowed, reason = risk.can_trade(market_id, size_usd, balance)
+        if not allowed:
+            logger.debug(f"[Orders] Strategic limit order blocked: {reason}")
+            return None
+
+        price = max(min(round(price, 4), 0.99), 0.01)
+        size_shares = round(size_usd / price, 2)
+
+        trade_id = db.log_trade(
+            market_id=market_id,
+            market_question=market_question,
+            side=side,
+            price=price,
+            size_usd=size_usd,
+            size_shares=size_shares,
+            strategy=strategy,
+            status="pending",
+            dry_run=config.DRY_RUN,
+            notes=notes,
+        )
+
+        resp = clob.place_limit_order(
+            token_id=token_id,
+            side=side,
+            price=price,
+            size_shares=size_shares,
+            post_only=post_only,
+        )
+
+        if resp:
+            order_id = resp.get("order_id") or resp.get("id") or f"strat-{trade_id}"
+            self._handle_post_execution(
+                trade_id=trade_id,
+                market_id=market_id,
+                market_question=market_question,
+                token_id=token_id,
+                side=side,
+                limit_price=price,
+                size_shares=size_shares,
+                size_usd=size_usd,
+                strategy=strategy,
+                status="simulated" if config.DRY_RUN else "open",
+            )
+            with self._lock:
+                self._open_order_ids[market_id] = order_id
+            return resp
+        else:
+            db.update_trade_status(trade_id, "failed")
+            return None
+
     # ── Cancel / Kill Switch ─────────────────────────────────────────
 
     def cancel_stink_bid(self, market_id: str) -> bool:
