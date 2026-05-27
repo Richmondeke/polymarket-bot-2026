@@ -197,7 +197,8 @@ class ClobClientWrapper:
 
         _clob_limiter.wait()
         try:
-            from py_clob_client import OrderArgs, Side, OrderType, PartialCreateOrderOptions
+            from py_clob_client.clob_types import OrderArgs, OrderType, PartialCreateOrderOptions
+            from py_clob_client.order_builder.constants import BUY, SELL
             
             o_type = OrderType.POST_ONLY if post_only else OrderType.GTC
 
@@ -205,7 +206,7 @@ class ClobClientWrapper:
                 order_args=OrderArgs(
                     token_id=token_id,
                     price=round(price, 4),
-                    side=Side.BUY if side.upper() == "BUY" else Side.SELL,
+                    side=BUY if side.upper() == "BUY" else SELL,
                     size=size_shares,
                 ),
                 options=PartialCreateOrderOptions(tick_size=tick_size),
