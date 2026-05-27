@@ -213,6 +213,8 @@ class ClobClientWrapper:
             return resp
         except Exception as e:
             logger.error(f"[CLOB] place_limit_order error: {e}")
+            from bot import database as db
+            db.log_event("error", f"[CLOB] place_limit_order error: {e}", severity="error")
             return None
 
     def cancel_order(self, order_id: str) -> bool:
