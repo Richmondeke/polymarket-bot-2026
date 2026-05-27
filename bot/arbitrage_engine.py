@@ -47,6 +47,10 @@ class ArbitrageEngine:
 
                 event_title = event_titles[event_id]
                 
+                # Check resolution time (short-term flips only)
+                if not config.is_market_fast_resolving(group_markets[0]):
+                    continue
+                
                 # Fetch outcomes & prices
                 legs_data = []
                 total_yes_prob = 0.0
