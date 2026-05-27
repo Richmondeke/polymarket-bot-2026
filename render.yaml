@@ -3,8 +3,8 @@ services:
     name: polymarket-bot
     env: python
     region: singapore
-    buildCommand: pip install -r requirements.txt
-    startCommand: ./start.sh
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "bash start.sh"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11.0"
