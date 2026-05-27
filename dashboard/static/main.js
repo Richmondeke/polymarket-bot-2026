@@ -1,7 +1,5 @@
 // Detect if running on Vercel vs local Flask
-const apiBase = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
-    ? '' 
-    : 'http://localhost:5000';
+const apiBase = '';
 
 // ── Chart.js Setup ──
 const ctx = document.getElementById('pnlChart').getContext('2d');
