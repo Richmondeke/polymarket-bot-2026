@@ -3,91 +3,373 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Polymarket Bot Dashboard</title>
+    <title>Polymarket Pro Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
-    <div class="terminal">
-        <!-- HEADER -->
-        <header class="header-bar">
-            <div class="stat-group">
-                <span class="label">STATUS</span>
-                <span id="bot-mode" class="value mode-badge">Loading...</span>
+    <div class="app-container">
+        <!-- TOP NAV BAR -->
+        <header class="top-nav">
+            <div class="nav-left">
+                <!-- Polymarket Geometric SVG Logo -->
+                <div class="logo-container">
+                    <svg class="pm-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 9L12 16L22 9L12 2Z" fill="#FFFFFF"/>
+                        <path d="M2 14L12 21L22 14" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="brand-name">Polymarket</span>
+                    <span id="bot-mode" class="mode-badge dry">dry run</span>
+                </div>
+                <!-- Search bar -->
+                <div class="search-box">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" placeholder="Search polymarkets..." disabled>
+                </div>
             </div>
-            <div class="stat-group">
-                <span class="label">USDC CASH</span>
-                <span id="current-balance" class="value">$0.00</span>
-            </div>
-            <div class="stat-group">
-                <span class="label">ESCROWED</span>
-                <span id="escrowed-balance" class="value">$0.00</span>
-            </div>
-            <div class="stat-group">
-                <span class="label">POSITIONS</span>
-                <span id="positions-value" class="value">$0.00</span>
-            </div>
-            <div class="stat-group">
-                <span class="label">TOTAL EQUITY</span>
-                <span id="total-equity" class="value">$0.00</span>
-            </div>
-            <div class="stat-group">
-                <span class="label">DAILY PNL</span>
-                <span id="daily-pnl" class="value">0.00%</span>
-            </div>
-            <div class="stat-group">
-                <span class="label">DRAWDOWN</span>
-                <span id="drawdown" class="value">0.00%</span>
-            </div>
-            <div class="stat-group">
-                <span class="label">WITHDRAWABLE 💰</span>
-                <span id="realized-pnl" class="value">$0.00</span>
-            </div>
-            <div class="controls">
-                <button id="kill-switch" class="btn-danger">KILL SWITCH</button>
+
+            <div class="nav-right">
+                <div class="quick-stat">
+                    <span class="stat-label">Portfolio</span>
+                    <span id="total-equity" class="stat-value pos">$14.22</span>
+                </div>
+                <div class="quick-stat">
+                    <span class="stat-label">Cash</span>
+                    <span id="current-balance" class="stat-value pos">$8.87</span>
+                </div>
+                <button class="btn-deposit-top">Deposit</button>
+                
+                <!-- Gift Box Icon -->
+                <div class="nav-icon-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                    </svg>
+                </div>
+
+                <!-- Bell Notification Icon -->
+                <div class="nav-icon-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                </div>
+
+                <!-- Gradient Avatar -->
+                <div class="profile-avatar"></div>
+
+                <!-- Kill Switch Button -->
+                <button id="kill-switch" class="btn-danger-nav">kill switch</button>
             </div>
         </header>
 
-        <!-- MAIN CONTENT -->
-        <main class="grid-container">
+        <!-- CATEGORIES BAR -->
+        <nav class="categories-bar">
+            <span class="cat-link active">Trending</span>
+            <span class="cat-link">Breaking</span>
+            <span class="cat-link">New</span>
+            <span class="cat-link">Politics</span>
+            <span class="cat-link">Sports</span>
+            <span class="cat-link">Crypto</span>
+            <span class="cat-link">Esports</span>
+            <span class="cat-link">Iran</span>
+            <span class="cat-link">Finance</span>
+            <span class="cat-link">Geopolitics</span>
+            <span class="cat-link">Tech</span>
+            <span class="cat-link">Culture</span>
+            <span class="cat-link">Economy</span>
+            <span class="cat-link">Weather</span>
+            <span class="cat-link">Mentions</span>
+            <span class="cat-link">Elections</span>
+            <span class="cat-link">More</span>
+        </nav>
+
+        <!-- MAIN TERMINAL GRID -->
+        <main class="grid-layout">
             
-            <!-- Chart Panel -->
-            <section class="panel chart-panel">
-                <h2>PORTFOLIO EQUITY</h2>
-                <div class="chart-container">
-                    <canvas id="pnlChart"></canvas>
+            <!-- PORTFOLIO PANEL -->
+            <section class="card-panel portfolio-card">
+                <div class="card-header">
+                    <div class="header-left">
+                        <span class="title">Portfolio</span>
+                        <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <polyline points="9 21 3 21 3 15"></polyline>
+                            <line x1="21" y1="3" x2="14" y2="10"></line>
+                            <line x1="3" y1="21" x2="10" y2="14"></line>
+                        </svg>
+                    </div>
+                    <div class="header-right">
+                        <span class="sub-label">Available to trade</span>
+                    </div>
+                </div>
+
+                <div class="card-body-row">
+                    <div class="val-left">
+                        <span id="total-equity-big" class="big-value">$14.22</span>
+                        <span id="daily-pnl" class="pnl-subtitle neg">-$0.29 (-2.04%) past day</span>
+                    </div>
+                    <div class="val-right">
+                        <span id="current-balance-big" class="big-value-right">$8.87</span>
+                    </div>
+                </div>
+
+                <div class="card-actions-row">
+                    <button class="btn-deposit-card">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <polyline points="19 12 12 19 5 12"></polyline>
+                        </svg>
+                        Deposit
+                    </button>
+                    <button class="btn-withdraw-card">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="19" x2="12" y2="5"></line>
+                            <polyline points="5 12 12 5 19 12"></polyline>
+                        </svg>
+                        Withdraw
+                    </button>
                 </div>
             </section>
 
-            <!-- Positions Panel -->
-            <section class="panel">
-                <h2>ACTIVE POSITIONS <span id="pos-count">(0/10)</span></h2>
-                <div class="table-wrapper">
+            <!-- PROFIT / LOSS PANEL -->
+            <section class="card-panel pnl-card">
+                <div class="card-header">
+                    <div class="header-left">
+                        <svg class="caret-down-red" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7 10l5 5 5-5H7z"/>
+                        </svg>
+                        <span class="title">Profit/Loss</span>
+                    </div>
+                    <div class="header-right">
+                        <div class="time-range-filters">
+                            <span class="filter-pill active">1D</span>
+                            <span class="filter-pill">1W</span>
+                            <span class="filter-pill">1M</span>
+                            <span class="filter-pill">1Y</span>
+                            <span class="filter-pill">YTD</span>
+                            <span class="filter-pill">ALL</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body-row">
+                    <div class="val-left">
+                        <span id="realized-pnl" class="big-value neg">-$0.18</span>
+                        <span class="pnl-subtitle">Past Day</span>
+                    </div>
+                </div>
+
+                <!-- High-craft custom gradient background chart -->
+                <div class="chart-wrapper">
+                    <canvas id="pnlChart"></canvas>
+                    <div class="watermark-logo">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2L2 9L12 16L22 9L12 2Z"/>
+                        </svg>
+                        <span>Polymarket</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TABS & POSITIONS TERMINAL SECTION (SPAN 2) -->
+            <section class="card-panel positions-section span-2">
+                <div class="section-tabs-header">
+                    <div class="tabs-left">
+                        <span class="tab-item active">Positions <span id="pos-count">(0/10)</span></span>
+                        <span class="tab-item">Open orders</span>
+                        <span class="tab-item">History</span>
+                    </div>
+                    <div class="tabs-right">
+                        <!-- Tiny inner search -->
+                        <div class="table-search">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input type="text" placeholder="Search">
+                        </div>
+                        <div class="dropdown-filter">
+                            <span>Current value</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- POSITIONS TABLE -->
+                <div class="positions-table-wrapper">
                     <table id="positions-table">
                         <thead>
                             <tr>
                                 <th>Market</th>
-                                <th>Side</th>
-                                <th>Entry</th>
-                                <th>Size</th>
-                                <th>Resolves In</th>
+                                <th>AVG &rarr; NOW</th>
+                                <th>Traded</th>
+                                <th>To win</th>
+                                <th class="text-right">Value</th>
+                                <th class="text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Populated by JS -->
+                            <!-- Mock live positions shown to mimic original exactly if empty, updated dynamically -->
+                            <tr>
+                                <td>
+                                    <div class="market-cell">
+                                        <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=100&auto=format&fit=crop');"></div>
+                                        <div class="market-info">
+                                            <span class="q-text">Will Harvey Weinstein be sentenced to additional prison time in NY?</span>
+                                            <span class="token-tag yes">Yes 9&cent; <span class="sh-count">22.9 shares</span></span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="mono-cell">9&cent; &rarr; 9.7&cent;</td>
+                                <td>$2.06</td>
+                                <td>$22.94</td>
+                                <td class="text-right">
+                                    <div class="value-cell">
+                                        <span class="val-usd">$2.21</span>
+                                        <span class="val-pnl pos">+$0.15 (7.22%)</span>
+                                    </div>
+                                </td>
+                                <td class="text-right">
+                                    <button class="btn-sell">Sell</button>
+                                    <button class="btn-share">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="market-cell">
+                                        <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=100&auto=format&fit=crop');"></div>
+                                        <div class="market-info">
+                                            <span class="q-text">Will Harvey Weinstein be sentenced to no additional prison time in NY?</span>
+                                            <span class="token-tag no">No 24&cent; <span class="sh-count">8.2 shares</span></span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="mono-cell">24&cent; &rarr; 24&cent;</td>
+                                <td>$1.98</td>
+                                <td>$8.24</td>
+                                <td class="text-right">
+                                    <div class="value-cell">
+                                        <span class="val-usd">$1.97</span>
+                                        <span class="val-pnl neg">-$0.00 (0.21%)</span>
+                                    </div>
+                                </td>
+                                <td class="text-right">
+                                    <button class="btn-sell">Sell</button>
+                                    <button class="btn-share">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="market-cell">
+                                        <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=100&auto=format&fit=crop');"></div>
+                                        <div class="market-info">
+                                            <span class="q-text">Will Harvey Weinstein be sentenced to additional prison time in NY?</span>
+                                            <span class="token-tag yes">Yes 7&cent; <span class="sh-count">8.1 shares</span></span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="mono-cell">7&cent; &rarr; 7.2&cent;</td>
+                                <td>$0.57</td>
+                                <td>$8.10</td>
+                                <td class="text-right">
+                                    <div class="value-cell">
+                                        <span class="val-usd">$0.58</span>
+                                        <span class="val-pnl pos">+$0.02 (2.86%)</span>
+                                    </div>
+                                </td>
+                                <td class="text-right">
+                                    <button class="btn-sell">Sell</button>
+                                    <button class="btn-share">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="market-cell">
+                                        <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1534447677768-be436bb09401?w=100&auto=format&fit=crop');"></div>
+                                        <div class="market-info">
+                                            <span class="q-text">Will the highest temperature in Hong Kong on May 28 exceed 33°C?</span>
+                                            <span class="token-tag no">No 19&cent; <span class="sh-count">5.3 shares</span></span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="mono-cell">19&cent; &rarr; 7.5&cent;</td>
+                                <td>$1.00</td>
+                                <td>$5.26</td>
+                                <td class="text-right">
+                                    <div class="value-cell">
+                                        <span class="val-usd">$0.39</span>
+                                        <span class="val-pnl neg">-$0.60 (60.51%)</span>
+                                    </div>
+                                </td>
+                                <td class="text-right">
+                                    <button class="btn-sell">Sell</button>
+                                    <button class="btn-share">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="market-cell">
+                                        <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=100&auto=format&fit=crop');"></div>
+                                        <div class="market-info">
+                                            <span class="q-text">Will Harvey Weinstein be sentenced to additional prison time in NY?</span>
+                                            <span class="token-tag yes">Yes 2&cent; <span class="sh-count">5.4 shares</span></span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="mono-cell">2&cent; &rarr; 3.5&cent;</td>
+                                <td>$0.11</td>
+                                <td>$5.40</td>
+                                <td class="text-right">
+                                    <div class="value-cell">
+                                        <span class="val-usd">$0.19</span>
+                                        <span class="val-pnl pos">+$0.08 (72.5%)</span>
+                                    </div>
+                                </td>
+                                <td class="text-right">
+                                    <button class="btn-sell">Sell</button>
+                                    <button class="btn-share">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </section>
 
-            <!-- Trades Panel -->
-            <section class="panel">
-                <h2>RECENT FILLS</h2>
-                <div class="table-wrapper">
+            <!-- EXTRA BOT MONITORING STATS SYSTEM -->
+            <!-- Recent Fills Panel -->
+            <section class="card-panel sub-card">
+                <div class="card-header">
+                    <span class="title">Recent Fills</span>
+                </div>
+                <div class="sub-table-wrapper">
                     <table id="trades-table">
                         <thead>
                             <tr>
@@ -99,36 +381,40 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Populated by JS -->
+                            <!-- Dynamically loaded -->
                         </tbody>
                     </table>
                 </div>
             </section>
 
-            <!-- Whales Panel -->
-            <section class="panel">
-                <h2>WHALE WATCHLIST</h2>
-                <div class="table-wrapper">
+            <!-- Whale Watchlist Panel -->
+            <section class="card-panel sub-card">
+                <div class="card-header">
+                    <span class="title">Whale Watchlist</span>
+                </div>
+                <div class="sub-table-wrapper">
                     <table id="whales-table">
                         <thead>
                             <tr>
                                 <th>Rank</th>
                                 <th>Address</th>
                                 <th>Win %</th>
-                                <th>Vol</th>
+                                <th>Volume</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Populated by JS -->
+                            <!-- Dynamically loaded -->
                         </tbody>
                     </table>
                 </div>
             </section>
 
             <!-- News Sentiment Panel -->
-            <section class="panel">
-                <h2>NEWS SENTIMENT ANALYSIS</h2>
-                <div class="table-wrapper">
+            <section class="card-panel sub-card">
+                <div class="card-header">
+                    <span class="title">News Sentiment</span>
+                </div>
+                <div class="sub-table-wrapper">
                     <table id="news-table">
                         <thead>
                             <tr>
@@ -139,43 +425,55 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Populated by JS -->
+                            <!-- Dynamically loaded -->
                         </tbody>
                     </table>
                 </div>
             </section>
 
             <!-- Arbitrage Monitor Panel -->
-            <section class="panel">
-                <h2>ARBITRAGE MONITOR</h2>
-                <div class="table-wrapper">
+            <section class="card-panel sub-card">
+                <div class="card-header">
+                    <span class="title">Arbitrage Monitor</span>
+                </div>
+                <div class="sub-table-wrapper">
                     <table id="arbitrage-table">
                         <thead>
                             <tr>
                                 <th>Event</th>
                                 <th>YES Sum</th>
                                 <th>Type</th>
-                                <th>Profit Margin</th>
+                                <th>Margin</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Populated by JS -->
+                            <!-- Dynamically loaded -->
                         </tbody>
                     </table>
                 </div>
             </section>
-            
-            <!-- Logs Panel -->
-            <section class="panel logs-panel span-2">
-                <h2>SYSTEM LOGS</h2>
-                <div class="log-container" id="log-container">
-                    <!-- Populated by JS -->
+
+            <!-- SYSTEM LOGS & METRICS (SPAN 2) -->
+            <section class="card-panel system-logs-card span-2">
+                <div class="card-header">
+                    <span class="title">System Log Terminal</span>
+                    <div class="header-right">
+                        <div class="meta-pills">
+                            <span class="pill-meta">Drawdown: <span id="drawdown" class="mono">-0.00%</span></span>
+                            <span class="pill-meta">Escrow: <span id="escrowed-balance" class="mono">$0.00</span></span>
+                            <span class="pill-meta">Pos Val: <span id="positions-value" class="mono">$0.00</span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="log-terminal-output" id="log-container">
+                    <!-- Dynamic Log lines -->
                 </div>
             </section>
 
         </main>
     </div>
 
+    <!-- Script triggers -->
     <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
 </html>
