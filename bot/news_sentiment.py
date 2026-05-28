@@ -119,15 +119,22 @@ Do not include any markdown formatting or extra text outside the JSON. Return on
                     "reasoning": parsed.get("reasoning", "No reasoning provided."),
                     "confidence": float(parsed.get("confidence", 0.5))
                 }
+            else:
+                logger.warning("[News] Gemini API returned empty candidates.")
+                return {
+                    "probability": 0.5,
+                    "sentiment": "neutral",
+                    "reasoning": "Gemini API returned no analysis candidates.",
+                    "confidence": 0.0
+                }
         except Exception as e:
             logger.error(f"[News] Gemini API error: {e}")
-            
-        return {
-            "probability": 0.5,
-            "sentiment": "neutral",
-            "reasoning": f"Gemini API analysis failed: {str(e)[:50]}",
-            "confidence": 0.0
-        }
+            return {
+                "probability": 0.5,
+                "sentiment": "neutral",
+                "reasoning": f"Gemini API analysis failed: {str(e)[:50]}",
+                "confidence": 0.0
+            }
 
     def _scan_and_trade(self):
         if not config.AI_SCORING_ENABLED or not config.GEMINI_API_KEY:
