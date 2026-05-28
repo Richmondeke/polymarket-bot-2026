@@ -4,11 +4,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "http://34.72.37.27:5000/api/$1"
+      "destination": "https://polymarket-bot-singapore.onrender.com/api/$1"
     },
     {
       "source": "/socket.io/(.*)",
-      "destination": "http://34.72.37.27:5000/socket.io/$1"
+      "destination": "https://polymarket-bot-singapore.onrender.com/socket.io/$1"
     }
   ]
 }
