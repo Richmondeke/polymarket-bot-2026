@@ -114,6 +114,7 @@ load_initial_cached_data()
 
 def background_emitter():
     """Pushes real-time updates via WebSocket and populates the global CACHED_DATA."""
+    global CACHED_DATA
     import time
     last_sync = 0
     while True:
@@ -182,7 +183,6 @@ def background_emitter():
             socketio.emit('logs_update', system_logs)
             
             # 7. Update Global Cache atomic reference
-            global CACHED_DATA
             CACHED_DATA = {
                 "status": status,
                 "trades": trades,
