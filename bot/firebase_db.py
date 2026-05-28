@@ -214,16 +214,20 @@ def upsert_daily_pnl(
     num_wins: int = 0,
     num_losses: int = 0,
 ):
-    _col("daily_pnl").document(date).set({
+    doc = {
         "date": date,
-        "starting_balance": starting_balance,
-        "ending_balance": ending_balance,
         "realized_pnl": realized_pnl,
         "unrealized_pnl": unrealized_pnl,
         "num_trades": num_trades,
         "num_wins": num_wins,
         "num_losses": num_losses,
-    }, merge=True)
+    }
+    if starting_balance is not None:
+        doc["starting_balance"] = starting_balance
+    if ending_balance is not None:
+        doc["ending_balance"] = ending_balance
+
+    _col("daily_pnl").document(date).set(doc, merge=True)
 
 
 def get_pnl_history(days: int = 30) -> List[Dict]:

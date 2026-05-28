@@ -1,23 +1,14 @@
 {
   "version": 2,
-  "builds": [
+  "cleanUrls": true,
+  "rewrites": [
     {
-      "src": "dashboard/app.py",
-      "use": "@vercel/python"
+      "source": "/static/(.*)",
+      "destination": "/dashboard/static/$1"
     },
     {
-      "src": "dashboard/static/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/dashboard/static/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/dashboard/app.py"
+      "source": "/(.*)",
+      "destination": "/dashboard/templates/index.html"
     }
   ]
 }

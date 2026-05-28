@@ -32,8 +32,18 @@ def add_cors_headers(response):
 
 def background_emitter():
     """Pushes real-time updates to the dashboard via WebSocket."""
+    import time
+    last_sync = 0
     while True:
         try:
+            now_time = time.time()
+            if now_time - last_sync >= 12:
+                try:
+                    db.sync_live_data("0x71e2a68115542f4CcC394D4953449a0734139F26")
+                except Exception as e:
+                    print(f"[Dashboard] Sync error: {e}")
+                last_sync = now_time
+
             # 1. Balances & Risk Status
             balance = clob.get_usdc_balance()
             status = risk.get_status(balance)
@@ -117,6 +127,11 @@ def get_logs():
 @app.route('/api/data')
 def get_dashboard_data():
     try:
+        try:
+            db.sync_live_data("0x71e2a68115542f4CcC394D4953449a0734139F26")
+        except Exception as e:
+            print(f"[Dashboard API] Sync error: {e}")
+
         balance = clob.get_usdc_balance()
         status = risk.get_status(balance)
         total_equity = status.get("total_equity", balance)

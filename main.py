@@ -102,13 +102,25 @@ def main():
     init_db()
 
     # 2. Check Balances & Set Daily Risk Baseline
+    try:
+        logger.info("[Main] Performing initial live positions/trades sync...")
+        from bot.database import sync_live_data
+        sync_live_data("0x71e2a68115542f4CcC394D4953449a0734139F26")
+    except Exception as e:
+        logger.error(f"[Main] Startup live sync failed: {e}")
+
     balance = clob.get_usdc_balance()
-    logger.info(f"[Main] Current Polygon USDC Balance: ${balance:.2f}")
-    risk.set_daily_start_balance(balance)
+    from bot import database as db
+    escrowed = db.get_escrowed_balance()
+    positions_val = db.get_positions_market_value()
+    total_equity = balance + escrowed + positions_val
+    logger.info(f"[Main] Current Polygon USDC Balance: ${balance:.2f} | Positions: ${positions_val:.2f} | Total Equity: ${total_equity:.2f}")
+    
+    risk.set_daily_start_balance(total_equity)
     
     # Initialize milestone alerts based on current starting equity
     status = risk.get_status(balance)
-    notifier.init_milestones(status.get("total_equity", balance))
+    notifier.init_milestones(status.get("total_equity", total_equity))
 
     # Backfill any missing end_dates for open positions (runs in background)
     threading.Thread(target=_backfill_end_dates, name="EndDateBackfill", daemon=True).start()

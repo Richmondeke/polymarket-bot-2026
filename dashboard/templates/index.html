@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
@@ -209,9 +209,9 @@
                         <thead>
                             <tr>
                                 <th>Market</th>
-                                <th>AVG &rarr; NOW</th>
-                                <th>Traded</th>
-                                <th>To win</th>
+                                <th class="hide-mobile">AVG &rarr; NOW</th>
+                                <th class="hide-mobile">Traded</th>
+                                <th class="hide-mobile">To win</th>
                                 <th class="text-right">Value</th>
                                 <th class="text-right">Action</th>
                             </tr>
@@ -474,6 +474,6 @@
     </div>
 
     <!-- Script triggers -->
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
+    <script src="/static/main.js"></script>
 </body>
 </html>

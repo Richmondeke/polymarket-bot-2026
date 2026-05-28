@@ -33,28 +33,32 @@ _gamma_limiter = _RateLimiter(calls_per_second=3.0)
 _data_limiter = _RateLimiter(calls_per_second=1.0)   # stricter limit on Data API
 _clob_limiter = _RateLimiter(calls_per_second=5.0)
 
+_http_lock = threading.Lock()
+
 
 def _get(url: str, params: Dict = None, limiter: _RateLimiter = None, retries: int = 3) -> Optional[Dict]:
     """HTTP GET with retry and rate limiting."""
     if limiter:
         limiter.wait()
-    for attempt in range(retries):
-        try:
-            resp = requests.get(url, params=params, timeout=15)
-            resp.raise_for_status()
-            return resp.json()
-        except requests.exceptions.HTTPError as e:
-            if resp.status_code == 429:
-                wait = 2 ** attempt
-                logger.warning(f"[Client] Rate limited. Waiting {wait}s… (attempt {attempt+1})")
-                time.sleep(wait)
-            else:
-                logger.error(f"[Client] HTTP {resp.status_code} for {url}: {e}")
-                return None
-        except Exception as e:
-            logger.error(f"[Client] Request error ({attempt+1}/{retries}): {e}")
-            time.sleep(1)
-    return None
+    with _http_lock:
+        for attempt in range(retries):
+            try:
+                resp = requests.get(url, params=params, timeout=15)
+                resp.raise_for_status()
+                return resp.json()
+            except requests.exceptions.HTTPError as e:
+                if resp.status_code == 429:
+                    wait = 2 ** attempt
+                    logger.warning(f"[Client] Rate limited. Waiting {wait}s… (attempt {attempt+1})")
+                    time.sleep(wait)
+                else:
+                    logger.error(f"[Client] HTTP {resp.status_code} for {url}: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"[Client] Request error ({attempt+1}/{retries}): {e}")
+                time.sleep(1)
+        return None
+
 
 
 # ── CLOB Client (authenticated trading) ─────────────────────────────
@@ -68,7 +72,9 @@ class ClobClientWrapper:
         self._client = None
         self._initialized = False
         self._init_lock = threading.Lock()
+        self._clob_call_lock = threading.Lock()
         self._virtual_balance = 100.0
+        self.last_error = None
 
     def _init(self):
         with self._init_lock:
@@ -79,31 +85,32 @@ class ClobClientWrapper:
                 self._initialized = True
                 return
             try:
-                from py_clob_client import ClobClient, ApiCreds
-                creds = None
-                if config.POLY_API_KEY:
-                    creds = ApiCreds(
-                        api_key=config.POLY_API_KEY,
-                        api_secret=config.POLY_API_SECRET,
-                        api_passphrase=config.POLY_API_PASSPHRASE,
-                    )
+                from py_clob_client_v2 import ClobClient, ApiCreds
+                # Step 1: Init without creds to derive the API key deterministically.
+                bootstrap = ClobClient(
+                    host=config.CLOB_HOST,
+                    chain_id=config.CHAIN_ID,
+                    key=config.POLYGON_PRIVATE_KEY,
+                )
+                logger.info("[CLOB] Deriving API credentials from private key…")
+                derived = bootstrap.derive_api_key()
+                logger.info(f"[CLOB] Using API key: {derived.api_key}")
+
+                # Derive Solady Deposit Wallet address as the maker/funder
+                from polynode.trading.onboarding import derive_deposit_wallet_address
+                dw_addr = derive_deposit_wallet_address(bootstrap.get_address())
+                logger.info(f"[CLOB] Derived Solady Deposit Wallet address: {dw_addr}")
+
+                # Step 2: Build the authenticated client with POLY_1271 signature type (3) and Deposit Wallet as funder.
                 self._client = ClobClient(
                     host=config.CLOB_HOST,
                     chain_id=config.CHAIN_ID,
                     key=config.POLYGON_PRIVATE_KEY,
-                    creds=creds,
+                    creds=derived,
+                    signature_type=3,  # POLY_1271
+                    funder=dw_addr,
                 )
-                if not creds:
-                    logger.info("[CLOB] Deriving API credentials from private key…")
-                    derived = self._client.create_or_derive_api_key()
-                    self._client = ClobClient(
-                        host=config.CLOB_HOST,
-                        chain_id=config.CHAIN_ID,
-                        key=config.POLYGON_PRIVATE_KEY,
-                        creds=derived,
-                    )
-                    logger.info("[CLOB] API credentials derived successfully")
-                logger.info("[CLOB] Client initialized ✓")
+                logger.info(f"[CLOB] Client initialized ✓ (POLY_1271 mode | Funder: {dw_addr})")
             except ImportError:
                 logger.warning("[CLOB] py_clob_client_v2 not installed. Run: pip install py_clob_client_v2")
             except Exception as e:
@@ -120,15 +127,16 @@ class ClobClientWrapper:
     def get_order_book(self, token_id: str) -> Optional[Dict]:
         """Get current order book for a token."""
         _clob_limiter.wait()
-        try:
-            if self.client:
-                return self.client.get_order_book(token_id)
-            # Fallback: public REST
-            data = _get(f"{config.CLOB_HOST}/book", {"token_id": token_id}, _clob_limiter)
-            return data
-        except Exception as e:
-            logger.error(f"[CLOB] get_order_book error: {e}")
-            return None
+        with self._clob_call_lock:
+            try:
+                if self.client:
+                    return self.client.get_order_book(token_id)
+                # Fallback: public REST
+                data = _get(f"{config.CLOB_HOST}/book", {"token_id": token_id}, _clob_limiter)
+                return data
+            except Exception as e:
+                logger.error(f"[CLOB] get_order_book error: {e}")
+                return None
 
     def get_best_ask(self, token_id: str) -> Optional[float]:
         """Return the current best ask price (0-1 scale)."""
@@ -147,29 +155,44 @@ class ClobClientWrapper:
         return None
 
     def get_usdc_balance(self) -> float:
-        """Return current USDC balance from Polygon wallet."""
+        """Return current USDC balance from Polymarket exchange account or Polygon wallet."""
         if config.DRY_RUN:
             return self._virtual_balance
-        if not self.client:
-            return 0.0
-        try:
-            from web3 import Web3
-            w3 = Web3(Web3.HTTPProvider(config.POLYGON_RPC_URL))
-            abi = [{"constant":True,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]
-            wallet = w3.to_checksum_address(config.POLYGON_WALLET_ADDRESS)
+        
+        with self._clob_call_lock:
+            if not self.client:
+                return 0.0
             
-            # Check Bridged USDC (USDC.e)
-            usdc_e = w3.eth.contract(address=w3.to_checksum_address("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"), abi=abi)
-            bal_e = usdc_e.functions.balanceOf(wallet).call()
-            
-            # Check Native USDC
-            usdc_n = w3.eth.contract(address=w3.to_checksum_address("0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"), abi=abi)
-            bal_n = usdc_n.functions.balanceOf(wallet).call()
-            
-            return (float(bal_e) + float(bal_n)) / 10**6
-        except Exception as e:
-            logger.error(f"[CLOB] get_usdc_balance error: {e}")
-            return 0.0
+            # 1. Try to get balance directly from the Polymarket CLOB exchange
+            try:
+                from py_clob_client_v2.clob_types import BalanceAllowanceParams, AssetType
+                bal_info = self.client.get_balance_allowance(BalanceAllowanceParams(asset_type=AssetType.COLLATERAL))
+                if bal_info and "balance" in bal_info:
+                    exchange_bal = float(bal_info["balance"]) / 10**6
+                    logger.info(f"[CLOB] Active Polymarket Exchange Balance: ${exchange_bal:.4f}")
+                    return exchange_bal
+            except Exception as e:
+                logger.warning(f"[CLOB] Failed to fetch balance from exchange API, falling back to on-chain: {e}")
+
+            # 2. Fallback to on-chain balances of EOA/Deposit Wallet
+            try:
+                from web3 import Web3
+                w3 = Web3(Web3.HTTPProvider(config.POLYGON_RPC_URL))
+                abi = [{"constant":True,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]
+                wallet = w3.to_checksum_address(config.POLYGON_WALLET_ADDRESS)
+                
+                # Check Bridged USDC (USDC.e)
+                usdc_e = w3.eth.contract(address=w3.to_checksum_address("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"), abi=abi)
+                bal_e = usdc_e.functions.balanceOf(wallet).call()
+                
+                # Check Native USDC
+                usdc_n = w3.eth.contract(address=w3.to_checksum_address("0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"), abi=abi)
+                bal_n = usdc_n.functions.balanceOf(wallet).call()
+                
+                return (float(bal_e) + float(bal_n)) / 10**6
+            except Exception as e:
+                logger.error(f"[CLOB] get_usdc_balance on-chain fallback error: {e}")
+                return 0.0
 
     def place_limit_order(
         self,
@@ -191,71 +214,80 @@ class ClobClientWrapper:
                 self._virtual_balance += cost
             return {"dry_run": True, "order_id": f"dry-{int(time.time())}", "status": "simulated"}
 
-        if not self.client:
-            logger.error("[CLOB] Cannot place order — client not initialized")
-            return None
+        with self._clob_call_lock:
+            if not self.client:
+                logger.error("[CLOB] Cannot place order — client not initialized")
+                return None
 
-        _clob_limiter.wait()
-        try:
-            from py_clob_client.clob_types import OrderArgs, PartialCreateOrderOptions
-            from py_clob_client.order_builder.constants import BUY, SELL
+            _clob_limiter.wait()
+            try:
+                from py_clob_client_v2.clob_types import OrderArgs, PartialCreateOrderOptions
+                from py_clob_client_v2.order_builder.constants import BUY, SELL
 
-            resp = self.client.create_and_post_order(
-                order_args=OrderArgs(
-                    token_id=token_id,
-                    price=round(price, 4),
-                    side=BUY if side.upper() == "BUY" else SELL,
-                    size=size_shares,
-                ),
-                options=PartialCreateOrderOptions(tick_size=tick_size),
-            )
-            logger.info(f"[CLOB] ✅ Order placed: {resp}")
-            return resp
-        except Exception as e:
-            logger.error(f"[CLOB] place_limit_order error: {e}")
-            from bot import database as db
-            db.log_event("error", f"[CLOB] place_limit_order error: {e}", severity="error")
-            return None
+                resp = self.client.create_and_post_order(
+                    order_args=OrderArgs(
+                        token_id=token_id,
+                        price=round(price, 4),
+                        side=BUY if side.upper() == "BUY" else SELL,
+                        size=size_shares,
+                    ),
+                    options=PartialCreateOrderOptions(tick_size=tick_size),
+                )
+                logger.info(f"[CLOB] ✅ Order placed: {resp}")
+                self.last_error = None
+                return resp
+            except Exception as e:
+                logger.error(f"[CLOB] place_limit_order error: {e}")
+                self.last_error = str(e)
+                from bot import database as db
+                db.log_event("error", f"[CLOB] place_limit_order error: {e}", severity="error")
+                return None
 
     def cancel_order(self, order_id: str) -> bool:
         if config.DRY_RUN:
             logger.info(f"[CLOB] 🟡 DRY RUN — would cancel order {order_id}")
             return True
-        if not self.client:
-            return False
-        try:
-            _clob_limiter.wait()
-            self.client.cancel_order(order_id)
-            return True
-        except Exception as e:
-            logger.error(f"[CLOB] cancel_order error: {e}")
-            return False
+        
+        with self._clob_call_lock:
+            if not self.client:
+                return False
+            try:
+                _clob_limiter.wait()
+                self.client.cancel_order(order_id)
+                return True
+            except Exception as e:
+                logger.error(f"[CLOB] cancel_order error: {e}")
+                return False
 
     def cancel_all_orders(self) -> bool:
         if config.DRY_RUN:
             logger.info("[CLOB] 🟡 DRY RUN — would cancel all orders")
             return True
-        if not self.client:
-            return False
-        try:
-            _clob_limiter.wait()
-            self.client.cancel_all_orders()
-            logger.info("[CLOB] 🔴 All open orders cancelled (KILL SWITCH)")
-            return True
-        except Exception as e:
-            logger.error(f"[CLOB] cancel_all_orders error: {e}")
-            return False
+        
+        with self._clob_call_lock:
+            if not self.client:
+                return False
+            try:
+                _clob_limiter.wait()
+                self.client.cancel_all_orders()
+                logger.info("[CLOB] 🔴 All open orders cancelled (KILL SWITCH)")
+                return True
+            except Exception as e:
+                logger.error(f"[CLOB] cancel_all_orders error: {e}")
+                return False
 
     def get_open_orders(self) -> List[Dict]:
-        if not self.client:
-            return []
-        try:
-            _clob_limiter.wait()
-            orders = self.client.get_orders()
-            return orders or []
-        except Exception as e:
-            logger.error(f"[CLOB] get_open_orders error: {e}")
-            return []
+        with self._clob_call_lock:
+            if not self.client:
+                return []
+            try:
+                _clob_limiter.wait()
+                orders = self.client.get_orders()
+                return orders or []
+            except Exception as e:
+                logger.error(f"[CLOB] get_open_orders error: {e}")
+                return []
+
 
 
 # ── Gamma API (market discovery) ────────────────────────────────────

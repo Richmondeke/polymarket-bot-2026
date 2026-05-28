@@ -454,11 +454,18 @@ def upsert_daily_pnl(
     with _conn() as con:
         existing = _fetchone(con, "SELECT id FROM daily_pnl WHERE date=?", (date,))
         if existing:
-            _execute(con,
-                """UPDATE daily_pnl SET ending_balance=?, realized_pnl=?,
-                   unrealized_pnl=?, num_trades=?, num_wins=?, num_losses=? WHERE date=?""",
-                (ending_balance, realized_pnl, unrealized_pnl, num_trades, num_wins, num_losses, date),
-            )
+            if starting_balance is not None:
+                _execute(con,
+                    """UPDATE daily_pnl SET starting_balance=?, ending_balance=?, realized_pnl=?,
+                       unrealized_pnl=?, num_trades=?, num_wins=?, num_losses=? WHERE date=?""",
+                    (starting_balance, ending_balance, realized_pnl, unrealized_pnl, num_trades, num_wins, num_losses, date),
+                )
+            else:
+                _execute(con,
+                    """UPDATE daily_pnl SET ending_balance=?, realized_pnl=?,
+                       unrealized_pnl=?, num_trades=?, num_wins=?, num_losses=? WHERE date=?""",
+                    (ending_balance, realized_pnl, unrealized_pnl, num_trades, num_wins, num_losses, date),
+                )
         else:
             _execute(con,
                 """INSERT INTO daily_pnl
@@ -558,3 +565,105 @@ def get_recent_events(limit: int = 100) -> List[Dict]:
         return _fetchall(con,
             "SELECT * FROM system_events ORDER BY timestamp DESC LIMIT ?", (limit,)
         )
+
+
+def sync_live_data(wallet_address: str):
+    """
+    Synchronizes local trades and positions with live Polymarket Data API.
+    Guarantees SQLite database always reflects true exchange state.
+    """
+    if USE_FIREBASE:
+        return
+
+    try:
+        import requests
+        
+        # 1. Sync Open Positions
+        url_positions = f"https://data-api.polymarket.com/positions?user={wallet_address}"
+        resp_pos = requests.get(url_positions, timeout=10)
+        if resp_pos.status_code == 200:
+            active_positions = resp_pos.json()
+            active_market_ids = set()
+            
+            with _conn() as con:
+                for pos in active_positions:
+                    market_id = pos.get("conditionId")
+                    if not market_id:
+                        continue
+                    active_market_ids.add(market_id)
+                    
+                    # Check if position already exists in DB
+                    existing = _fetchone(con, "SELECT id, is_open FROM positions WHERE market_id=?", (market_id,))
+                    
+                    market_question = pos.get("title")
+                    token_id = pos.get("asset")
+                    side = pos.get("outcome", "Yes")
+                    entry_price = float(pos.get("avgPrice", 0))
+                    current_price = float(pos.get("curPrice", 0))
+                    size_shares = float(pos.get("size", 0))
+                    size_usd = float(pos.get("currentValue", 0))
+                    unrealized_pnl = float(pos.get("cashPnl", 0))
+                    end_date = pos.get("endDate")
+                    
+                    if existing:
+                        _execute(con,
+                            """UPDATE positions SET 
+                               is_open=1, side=?, entry_price=?, current_price=?, 
+                               size_shares=?, size_usd=?, unrealized_pnl=?, 
+                               end_date=?, updated_at=? WHERE market_id=?""",
+                            (side.upper(), entry_price, current_price, size_shares, size_usd, unrealized_pnl, end_date, _now(), market_id)
+                        )
+                    else:
+                        _execute(con,
+                            """INSERT INTO positions
+                               (market_id, market_question, token_id, side, entry_price, current_price,
+                                size_shares, size_usd, unrealized_pnl, strategy, end_date, opened_at, updated_at, is_open)
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
+                            (market_id, market_question, token_id, side.upper(), entry_price, current_price,
+                             size_shares, size_usd, unrealized_pnl, "Live Sync", end_date, _now(), _now())
+                        )
+                
+                # Close any positions in the database that are no longer active
+                if active_market_ids:
+                    placeholders = ",".join(["?"] * len(active_market_ids))
+                    _execute(con, f"UPDATE positions SET is_open=0, updated_at=? WHERE is_open=1 AND market_id NOT IN ({placeholders})",
+                                (_now(), *active_market_ids))
+                else:
+                    _execute(con, "UPDATE positions SET is_open=0, updated_at=? WHERE is_open=1", (_now(),))
+        
+        # 2. Sync Recent Fills / Trades
+        url_trades = f"https://data-api.polymarket.com/trades?user={wallet_address}&limit=40"
+        resp_trades = requests.get(url_trades, timeout=10)
+        if resp_trades.status_code == 200:
+            recent_trades = resp_trades.json()
+            with _conn() as con:
+                for t in recent_trades:
+                    tx_hash = t.get("transactionHash")
+                    if not tx_hash:
+                        continue
+                    
+                    # Check if trade already exists
+                    existing = _fetchone(con, "SELECT id FROM trades WHERE order_id=?", (tx_hash,))
+                    if not existing:
+                        market_id = t.get("conditionId")
+                        market_question = t.get("title")
+                        side = t.get("side", "BUY")
+                        price = float(t.get("price", 0))
+                        size_shares = float(t.get("size", 0))
+                        size_usd = round(price * size_shares, 4)
+                        
+                        # Convert epoch timestamp to ISO string
+                        epoch = t.get("timestamp")
+                        iso_time = datetime.fromtimestamp(epoch, timezone.utc).isoformat() if epoch else _now()
+                        
+                        _execute(con,
+                            """INSERT INTO trades
+                               (timestamp, market_id, market_question, side, price, size_usd,
+                                size_shares, order_id, strategy, status, fill_price, fill_time, dry_run, notes)
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (iso_time, market_id, market_question, side.upper(), price, size_usd,
+                             size_shares, tx_hash, "Live Sync", "filled", price, iso_time, 0, "Synced from Polymarket Exchange")
+                        )
+    except Exception as e:
+        logger.error(f"[DB] Live sync error: {e}")
+

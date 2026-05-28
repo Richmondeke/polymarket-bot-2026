@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_wKtE8GmDw4exG5mzlnKpU2nBXgRu",
+  "orgId": "team_nmGgMXTxr4xZTWjE9yF98aYG",
+  "projectName": "polymarket-bot",
+  "settings": {
+    "createdAt": 1779511822230,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

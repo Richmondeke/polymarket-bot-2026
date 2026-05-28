@@ -23,6 +23,23 @@ class OrderManager:
         self._open_order_ids: Dict[str, str] = {}  # market_id → order_id
         self._lock = threading.Lock()
 
+    def _adjust_order_to_clob_minimums(self, limit_price: float, size_usd: float, size_shares: float) -> tuple[float, float]:
+        """
+        Adjust size_usd and size_shares to satisfy Polymarket CLOB rules:
+        - At least 5.0 shares
+        - At least $1.00 USD value for marketable orders
+        """
+        price = max(limit_price, 0.01)
+        # Ensure we buy at least 5 shares
+        shares = max(5.0, size_shares)
+        # Ensure total cost is at least $1.01 to clear the $1.00 marketable order limit
+        if shares * price < 1.01:
+            shares = round(1.01 / price, 2)
+            shares = max(5.0, shares)
+        
+        usd = round(shares * price, 2)
+        return usd, shares
+
     def _handle_post_execution(
         self,
         trade_id: int,
@@ -115,7 +132,7 @@ class OrderManager:
             return None
 
         balance = clob.get_usdc_balance()
-        allowed, reason = risk.can_trade(market_id, size_usd, balance)
+        allowed, reason = risk.can_trade(market_id, size_usd, balance, side=side)
         if not allowed:
             logger.info(f"[Orders] Trade blocked: {reason}")
             db.log_event("risk", f"Trade blocked ({market_id}): {reason}", severity="warning")
@@ -208,7 +225,7 @@ class OrderManager:
             return None
 
         balance = clob.get_usdc_balance()
-        allowed, reason = risk.can_trade(market_id, size_usd, balance)
+        allowed, reason = risk.can_trade(market_id, size_usd, balance, side=side)
         if not allowed:
             logger.info(f"[Orders] Sentiment trade blocked: {reason}")
             db.log_event("risk", f"Sentiment trade blocked ({market_id}): {reason}", severity="warning")
@@ -276,6 +293,99 @@ class OrderManager:
             db.log_event("trade", f"Sentiment order placement failed: {market_id}", severity="error")
             return None
 
+    # ── Short-expiry market trades ───────────────────────────────────
+
+    def place_short_expiry_order(
+        self,
+        market_id: str,
+        market_question: str,
+        token_id: str,
+        side: str,
+        current_price: float,
+        size_usd: float,
+        edge_pct: float,
+        confidence: float,
+        mins_to_expiry: float,
+        notes: str = "",
+    ) -> Optional[Dict]:
+        """
+        Place a limit order on a short-expiry market where we have a
+        quantified edge (e.g., BTC price above threshold based on spot data).
+        """
+        if risk.kill_switch_active:
+            logger.warning("[Orders] Kill switch active — skipping short-expiry order")
+            return None
+
+        balance = clob.get_usdc_balance()
+        allowed, reason = risk.can_trade(market_id, size_usd, balance, side=side)
+        if not allowed:
+            logger.info(f"[Orders] Short-expiry trade blocked: {reason}")
+            db.log_event("risk", f"ShortExpiry blocked ({market_id}): {reason}", severity="warning")
+            return None
+
+        # Use current_price with a small buffer to improve fill rate
+        limit_price = round(min(current_price * 1.015, 0.97), 4)
+        size_shares = round(size_usd / max(limit_price, 0.01), 2)
+        size_usd, size_shares = self._adjust_order_to_clob_minimums(limit_price, size_usd, size_shares)
+
+        logger.info(
+            f"[Orders] {'🟡 DRY RUN' if config.DRY_RUN else '🟢 LIVE'} "
+            f"ShortExpiry: {side} {size_shares:.2f}sh @ ${limit_price:.3f} | "
+            f"Edge={edge_pct:.1f}% | Conf={confidence:.1%} | Exp={mins_to_expiry:.0f}min | "
+            f"'{market_question[:50]}'"
+        )
+
+        trade_id = db.log_trade(
+            market_id=market_id,
+            market_question=market_question,
+            side=side,
+            price=limit_price,
+            size_usd=size_usd,
+            size_shares=size_shares,
+            strategy="ShortExpiry",
+            status="pending",
+            dry_run=config.DRY_RUN,
+            notes=notes or f"edge={edge_pct:.1f}% conf={confidence:.1%} expiry={mins_to_expiry:.0f}min",
+        )
+
+        resp = clob.place_limit_order(
+            token_id=token_id,
+            side=side,
+            price=limit_price,
+            size_shares=size_shares,
+        )
+
+        if resp:
+            order_id = resp.get("order_id") or resp.get("id") or f"sim-{trade_id}"
+            self._handle_post_execution(
+                trade_id=trade_id,
+                market_id=market_id,
+                market_question=market_question,
+                token_id=token_id,
+                side=side,
+                limit_price=limit_price,
+                size_shares=size_shares,
+                size_usd=size_usd,
+                strategy="ShortExpiry",
+                status="filled" if config.DRY_RUN else "open",
+            )
+            with self._lock:
+                self._open_order_ids[market_id] = order_id
+
+            db.log_event(
+                "trade",
+                f"{'[DRY]' if config.DRY_RUN else '[LIVE]'} ShortExpiry: "
+                f"{side} {size_shares:.2f}sh @ ${limit_price:.3f} | Edge={edge_pct:.1f}% | "
+                f"'{market_question[:40]}'",
+                severity="info",
+                data={"market_id": market_id, "edge_pct": edge_pct, "confidence": confidence},
+            )
+            return resp
+        else:
+            db.update_trade_status(trade_id, "failed")
+            db.log_event("trade", f"ShortExpiry order failed: {market_id}", severity="error")
+            return None
+
     # ── Main entry point for arbitrage basket trades ────────────────
 
     def place_arbitrage_basket(
@@ -295,7 +405,7 @@ class OrderManager:
 
         balance = clob.get_usdc_balance()
         # Perform check on total cost
-        allowed, reason = risk.can_trade(f"arb_{event_id}", total_cost_usd, balance)
+        allowed, reason = risk.can_trade(f"arb_{event_id}", total_cost_usd, balance, side="BUY")
         if not allowed:
             logger.info(f"[Orders] Arbitrage basket blocked: {reason}")
             db.log_event("risk", f"Arbitrage basket blocked ({event_id}): {reason}", severity="warning")
@@ -398,12 +508,13 @@ class OrderManager:
         stink_price = max(stink_price, 0.01)  # never below 1 cent
 
         balance = clob.get_usdc_balance()
-        allowed, reason = risk.can_trade(market_id, size_usd, balance)
+        allowed, reason = risk.can_trade(market_id, size_usd, balance, side="BUY")
         if not allowed:
             logger.debug(f"[Orders] Stink bid blocked: {reason}")
             return None
 
         size_shares = round(size_usd / stink_price, 2)
+        size_usd, size_shares = self._adjust_order_to_clob_minimums(stink_price, size_usd, size_shares)
 
         logger.info(
             f"[Orders] {'🟡 DRY' if config.DRY_RUN else '🟢'} Stink bid: "
@@ -480,7 +591,7 @@ class OrderManager:
             return None
 
         balance = clob.get_usdc_balance()
-        allowed, reason = risk.can_trade(market_id, size_usd, balance)
+        allowed, reason = risk.can_trade(market_id, size_usd, balance, side=side)
         if not allowed:
             logger.debug(f"[Orders] Strategic limit order blocked: {reason}")
             return None
@@ -528,6 +639,12 @@ class OrderManager:
             return resp
         else:
             db.update_trade_status(trade_id, "failed")
+            if side.upper() == "SELL" and clob.last_error:
+                err = clob.last_error.lower()
+                unrecoverable_keywords = ["invalid token id", "market resolved", "market closed", "not found", "bad token id", "order book closed"]
+                if any(k in err for k in unrecoverable_keywords):
+                    logger.warning(f"[Orders] Unrecoverable CLOB error detected: '{clob.last_error}'. Force closing position in DB to prevent retry loops.")
+                    db.close_position(market_id, exit_price=price)
             return None
 
     # ── Cancel / Kill Switch ─────────────────────────────────────────

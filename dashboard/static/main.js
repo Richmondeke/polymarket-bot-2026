@@ -1,5 +1,5 @@
 // Detect if running on Vercel vs local Flask
-const apiBase = '';
+const apiBase = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? '' : 'http://34.72.37.27:5000';
 
 // ── Chart.js Setup ──
 const ctx = document.getElementById('pnlChart').getContext('2d');
@@ -271,9 +271,9 @@ function updateUI(data) {
                             </div>
                         </div>
                     </td>
-                    <td class="mono-cell">${entryCents}&cent; &rarr; ${curCents}&cent;</td>
-                    <td>$${(p.size_usd || 0).toFixed(2)}</td>
-                    <td>$${(shares * 1.0).toFixed(2)}</td>
+                    <td class="mono-cell hide-mobile">${entryCents}&cent; &rarr; ${curCents}&cent;</td>
+                    <td class="hide-mobile">$${(p.size_usd || 0).toFixed(2)}</td>
+                    <td class="hide-mobile">$${(shares * 1.0).toFixed(2)}</td>
                     <td class="text-right">
                         <div class="value-cell">
                             <span class="val-usd">$${value.toFixed(2)}</span>

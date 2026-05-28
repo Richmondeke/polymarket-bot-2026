@@ -59,6 +59,10 @@ class GridEngine:
         
         while self._running:
             try:
+                # Bypass simulated mock targets when live trading is active
+                if not config.DRY_RUN:
+                    time.sleep(15)
+                    continue
                 # In production, scan for markets with high volume and large spreads
                 # For this implementation, we simulate finding a volatile market
                 

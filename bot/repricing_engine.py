@@ -53,6 +53,10 @@ class RepricingEngine:
         
         while self._running:
             try:
+                # Bypass simulated mock targets when live trading is active
+                if not config.DRY_RUN:
+                    time.sleep(15)
+                    continue
                 # 1. Get active sports markets from our order manager / cache
                 # In a real scenario, you'd fetch the active sports markets from Polymarket
                 # For this implementation, we will use our mock target

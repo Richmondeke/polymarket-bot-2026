@@ -52,6 +52,7 @@ class RiskManager:
         market_id: str,
         size_usd: float,
         current_balance: float,
+        side: str = "BUY",
     ) -> tuple[bool, str]:
         """
         Master pre-trade check. Returns (allowed, reason).
@@ -62,16 +63,17 @@ class RiskManager:
             return False, "Kill switch is active"
 
         # 2. Duplicate position guard
-        if db.position_exists(market_id):
+        if side.upper() == "BUY" and db.position_exists(market_id):
             return False, f"Position already open in market {market_id}"
 
         # 3. Max open positions
-        open_positions = db.get_open_positions()
-        if len(open_positions) >= config.MAX_OPEN_POSITIONS:
-            return False, f"Max open positions reached ({config.MAX_OPEN_POSITIONS})"
+        if side.upper() == "BUY":
+            open_positions = db.get_open_positions()
+            if len(open_positions) >= config.MAX_OPEN_POSITIONS:
+                return False, f"Max open positions reached ({config.MAX_OPEN_POSITIONS})"
 
         # 4. Insufficient balance (must have actual cash)
-        if size_usd > current_balance * 0.95:
+        if side.upper() == "BUY" and size_usd > current_balance * 0.95:
             return False, f"Insufficient cash: ${current_balance:.2f} for ${size_usd:.2f} trade"
 
         # Calculate Total Equity for risk limits
@@ -117,8 +119,9 @@ class RiskManager:
             return True, "OK"
 
         # Find the highest balance recorded (all-time peak)
+        fallback_peak = self._daily_start_balance or current_balance
         peak = max(
-            (r.get("ending_balance") or r.get("starting_balance") or 100)
+            (r.get("ending_balance") or r.get("starting_balance") or fallback_peak)
             for r in history
         )
         if peak <= 0:
@@ -221,12 +224,13 @@ class RiskManager:
         total_equity = current_balance + escrowed + positions_val
 
         history = db.get_pnl_history(days=90)
+        fallback_peak = self._daily_start_balance or total_equity
         peak = max(
-            (r.get("ending_balance") or 100 for r in history),
-            default=100,
+            (r.get("ending_balance") or fallback_peak for r in history),
+            default=fallback_peak,
         )
-        peak = max(peak, self._daily_start_balance or 100.0, total_equity)
-        drawdown_pct = (peak - total_equity) / max(peak, 1) * 100
+        peak = max(peak, self._daily_start_balance or total_equity, total_equity)
+        drawdown_pct = (peak - total_equity) / max(peak, 1.0) * 100
 
         daily_pnl_pct = 0.0
         if self._daily_start_balance and self._daily_start_balance > 0:

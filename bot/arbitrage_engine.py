@@ -88,11 +88,24 @@ class ArbitrageEngine:
                     num_legs = len(legs_data)
                     total_no_price = num_legs - total_yes_prob
                     
-                    # We want total cost to be around config.POSITION_SIZE_USD
-                    # Total cost = Shares * total_no_price
-                    shares = round(config.POSITION_SIZE_USD / max(total_no_price, 0.01), 2)
+                    # Ensure Polymarket CLOB limits are met on ALL legs:
+                    # Minimum 5.0 shares per leg AND minimum $1.00 USD total marketable value per leg (shares * price >= 1.00)
+                    # To satisfy this for all legs while keeping equal shares (perfect hedge), we need:
+                    # shares >= 5.0 and shares >= 1.00 / leg["no_price"] for all legs
+                    min_shares_needed = max(5.0, max(1.00 / max(leg["no_price"], 0.01) for leg in legs_data))
+                    shares = round(max(min_shares_needed, config.POSITION_SIZE_USD / max(total_no_price, 0.01)), 2)
                     total_cost = round(shares * total_no_price, 2)
                     
+                    # Pre-flight balance check
+                    try:
+                        balance = clob.get_usdc_balance()
+                        if total_cost > balance * 0.95:
+                            logger.warning(f"[Arbitrage] Insufficient balance for basket trade: Need ${total_cost:.2f}, Have ${balance:.2f}")
+                            continue
+                    except Exception as e:
+                        logger.error(f"[Arbitrage] Balance check failed, skipping: {e}")
+                        continue
+
                     # Skip if shares is too small or total cost is invalid
                     if shares <= 0 or total_cost <= 0:
                         continue
@@ -108,7 +121,7 @@ class ArbitrageEngine:
 
                     logger.info(
                         f"[Arbitrage] Opportunity detected! Event: '{event_title}' | "
-                        f"YES Sum: {total_yes_prob:.3f} | Buying NO basket at sum {total_no_price:.3f}"
+                        f"YES Sum: {total_yes_prob:.3f} | Buying NO basket at sum {total_no_price:.3f} with {shares} shares per leg"
                     )
 
                     # Log to events for dashboard monitor
@@ -152,8 +165,22 @@ class ArbitrageEngine:
                     # Only buy YES if list is exhaustive. We assume sports and nomiation markets are exhaustive,
                     # or we filter for specific categories or tags.
                     # As a general rule for V1, we log the opportunity and place the trade if enabled
-                    shares = round(config.POSITION_SIZE_USD / max(total_yes_prob, 0.01), 2)
+                    
+                    # Ensure Polymarket CLOB limits are met on ALL legs:
+                    # Minimum 5.0 shares per leg AND minimum $1.00 USD total marketable value per leg
+                    min_shares_needed = max(5.0, max(1.00 / max(leg["yes_price"], 0.01) for leg in legs_data))
+                    shares = round(max(min_shares_needed, config.POSITION_SIZE_USD / max(total_yes_prob, 0.01)), 2)
                     total_cost = round(shares * total_yes_prob, 2)
+
+                    # Pre-flight balance check
+                    try:
+                        balance = clob.get_usdc_balance()
+                        if total_cost > balance * 0.95:
+                            logger.warning(f"[Arbitrage] Insufficient balance for basket trade: Need ${total_cost:.2f}, Have ${balance:.2f}")
+                            continue
+                    except Exception as e:
+                        logger.error(f"[Arbitrage] Balance check failed, skipping: {e}")
+                        continue
 
                     if shares <= 0 or total_cost <= 0:
                         continue
@@ -168,7 +195,7 @@ class ArbitrageEngine:
 
                     logger.info(
                         f"[Arbitrage] Opportunity detected! Event: '{event_title}' | "
-                        f"YES Sum: {total_yes_prob:.3f} | Buying YES basket"
+                        f"YES Sum: {total_yes_prob:.3f} | Buying YES basket with {shares} shares per leg"
                     )
 
                     db.log_event(
@@ -213,8 +240,8 @@ class ArbitrageEngine:
         while self._running:
             self._scan_and_arbitrage()
             
-            # Sleep for 5 minutes between scans
-            for _ in range(300):
+            # Sleep for 45 seconds between scans (ultra-short plays)
+            for _ in range(45):
                 if not self._running:
                     break
                 time.sleep(1)

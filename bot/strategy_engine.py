@@ -14,6 +14,7 @@ from bot.cross_line_arb import cross_line_engine
 from bot.repricing_engine import repricing_engine
 from bot.hedge_engine import hedge_engine
 from bot.grid_engine import grid_engine
+from bot.short_expiry_engine import short_expiry_engine
 from bot.risk_manager import risk
 
 
@@ -72,6 +73,7 @@ class StrategyEngine:
         repricing_engine.start()
         hedge_engine.start()
         grid_engine.start()
+        short_expiry_engine.start()
         
         self._running = True
         logger.info("[Strategy] Engine started")

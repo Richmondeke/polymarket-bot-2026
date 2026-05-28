@@ -130,6 +130,10 @@ Do not include any markdown formatting or extra text outside the JSON. Return on
         }
 
     def _scan_and_trade(self):
+        if not config.AI_SCORING_ENABLED or not config.GEMINI_API_KEY:
+            logger.info("[News] AI Scoring is disabled or GEMINI_API_KEY is missing. Skipping scan to avoid simulated data.")
+            return
+
         logger.info("[News] Scanning active markets for news sentiment arbitrage…")
         try:
             # Scan active Politics or general high volume markets

@@ -1,5 +1,5 @@
 # Polymarket SDK
-py-clob-client>=0.1.0
+py-clob-client-v2>=1.0.0
 
 # Web3 / Blockchain
 web3>=6.0.0
@@ -35,3 +35,6 @@ psycopg2-binary>=2.9.0
 # Firebase / Firestore (cloud DB support)
 firebase-admin>=6.0.0
 gunicorn>=21.0.0
+
+# PolyNode API
+polynode>=0.10.5
