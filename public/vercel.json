@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "http://34.72.37.27:5000/api/$1"
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "destination": "http://34.72.37.27:5000/socket.io/$1"
+    }
+  ]
+}

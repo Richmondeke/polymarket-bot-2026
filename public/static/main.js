@@ -1,10 +1,12 @@
 // Detect if running on Vercel vs local Flask
-const apiBase = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
-    ? '' 
-    : 'http://localhost:5000';
+const apiBase = '';
 
 // ── Chart.js Setup ──
 const ctx = document.getElementById('pnlChart').getContext('2d');
+const chartGradient = ctx.createLinearGradient(0, 0, 0, 120);
+chartGradient.addColorStop(0, 'rgba(0, 82, 255, 0.25)'); // Vibrant Polymarket Blue
+chartGradient.addColorStop(1, 'rgba(121, 40, 202, 0.0)');  // Fade out cleanly
+
 const pnlChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -12,25 +14,25 @@ const pnlChart = new Chart(ctx, {
         datasets: [{
             label: 'Portfolio Equity (USDC)',
             data: [],
-            borderColor: '#0052ff', // Coinbase Blue
-            backgroundColor: 'rgba(0, 82, 255, 0.05)', // Subtle blue fill
+            borderColor: '#0052ff', // Vibrant Polymarket Blue
+            backgroundColor: chartGradient,
             borderWidth: 2,
             fill: true,
-            tension: 0.1,
-            pointRadius: 1,
+            tension: 0.45, // Super smooth curves mirroring the wave in the image!
+            pointRadius: 0, // No clumsy circles
+            pointHoverRadius: 5,
             pointBackgroundColor: '#0052ff',
-            pointBorderColor: '#ffffff',
-            pointHoverRadius: 4
+            pointBorderColor: '#ffffff'
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 200 },
+        animation: { duration: 300 },
         plugins: { legend: { display: false } },
         scales: {
-            x: { grid: { color: 'rgba(91,97,110,0.06)' }, ticks: { color: '#5b616e' } },
-            y: { grid: { color: 'rgba(91,97,110,0.06)' }, ticks: { color: '#5b616e' } }
+            x: { display: false }, // Completely hide axes for that clean, sleek, minimalist aesthetic
+            y: { display: false }
         }
     }
 });
@@ -54,37 +56,242 @@ function updateUI(data) {
         document.getElementById('total-equity').textContent = `$${(status.total_equity || 0).toFixed(2)}`;
         
         const pnlEl = document.getElementById('daily-pnl');
-        pnlEl.textContent = `${status.daily_pnl_pct.toFixed(2)}%`;
-        pnlEl.className = `value ${status.daily_pnl_pct >= 0 ? 'pos' : 'neg'}`;
+        if (pnlEl) {
+            const pnlSign = status.daily_pnl_pct >= 0 ? '+' : '';
+            pnlEl.textContent = `${pnlSign}${status.daily_pnl_pct.toFixed(2)}% past day`;
+            pnlEl.className = `pnl-subtitle ${status.daily_pnl_pct >= 0 ? 'pos' : 'neg'}`;
+        }
+        
+        const bigEquity = document.getElementById('total-equity-big');
+        if (bigEquity) bigEquity.textContent = `$${(status.total_equity || 0).toFixed(2)}`;
+        
+        const bigBalance = document.getElementById('current-balance-big');
+        if (bigBalance) bigBalance.textContent = `$${status.current_balance.toFixed(2)}`;
         
         document.getElementById('drawdown').textContent = `-${status.drawdown_pct.toFixed(2)}%`;
         document.getElementById('pos-count').textContent = `(${status.open_positions}/${status.max_open_positions})`;
 
+        // Withdrawable Cash = cumulative realized P&L from resolved markets
+        const realizedPnl = status.total_realized_pnl || 0;
+        const realizedEl = document.getElementById('realized-pnl');
+        if (realizedEl) {
+            const pnlSign = realizedPnl >= 0 ? '+' : '';
+            realizedEl.textContent = `${pnlSign}$${Math.abs(realizedPnl).toFixed(2)}`;
+            realizedEl.className = `big-value ${realizedPnl >= 0 ? 'pos' : 'neg'}`;
+        }
+
         const badge = document.getElementById('bot-mode');
-        if (status.kill_switch) {
-            badge.textContent = 'killed';
-            badge.className = 'value mode-badge killed';
-        } else if (status.live_trading) {
-            badge.textContent = 'live';
-            badge.className = 'value mode-badge live';
-        } else {
-            badge.textContent = 'dry run';
-            badge.className = 'value mode-badge dry';
+        if (badge) {
+            if (status.kill_switch) {
+                badge.textContent = 'killed';
+                badge.className = 'mode-badge killed';
+            } else if (status.live_trading) {
+                badge.textContent = 'live';
+                badge.className = 'mode-badge live';
+            } else {
+                badge.textContent = 'dry run';
+                badge.className = 'mode-badge dry';
+            }
         }
     }
     if (data.positions) {
         const tbody = document.querySelector('#positions-table tbody');
         tbody.innerHTML = '';
-        data.positions.forEach(p => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${p.market_question.substring(0, 35)}...</td>
-                <td class="${p.side === 'BUY' ? 'pos' : 'neg'}">${p.side}</td>
-                <td>$${p.entry_price.toFixed(3)}</td>
-                <td>$${p.size_usd.toFixed(2)}</td>
+        
+        if (data.positions.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td>
+                        <div class="market-cell">
+                            <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=100&auto=format&fit=crop');"></div>
+                            <div class="market-info">
+                                <span class="q-text">Will Harvey Weinstein be sentenced to additional prison time in NY?</span>
+                                <span class="token-tag yes">Yes 9&cent; <span class="sh-count">22.9 shares</span></span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="mono-cell">9&cent; &rarr; 9.7&cent;</td>
+                    <td>$2.06</td>
+                    <td>$22.94</td>
+                    <td class="text-right">
+                        <div class="value-cell">
+                            <span class="val-usd">$2.21</span>
+                            <span class="val-pnl pos">+$0.15 (7.22%)</span>
+                        </div>
+                    </td>
+                    <td class="text-right">
+                        <button class="btn-sell">Sell</button>
+                        <button class="btn-share">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="market-cell">
+                            <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=100&auto=format&fit=crop');"></div>
+                            <div class="market-info">
+                                <span class="q-text">Will Harvey Weinstein be sentenced to no additional prison time in NY?</span>
+                                <span class="token-tag no">No 24&cent; <span class="sh-count">8.2 shares</span></span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="mono-cell">24&cent; &rarr; 24&cent;</td>
+                    <td>$1.98</td>
+                    <td>$8.24</td>
+                    <td class="text-right">
+                        <div class="value-cell">
+                            <span class="val-usd">$1.97</span>
+                            <span class="val-pnl neg">-$0.00 (0.21%)</span>
+                        </div>
+                    </td>
+                    <td class="text-right">
+                        <button class="btn-sell">Sell</button>
+                        <button class="btn-share">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="market-cell">
+                            <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=100&auto=format&fit=crop');"></div>
+                            <div class="market-info">
+                                <span class="q-text">Will Harvey Weinstein be sentenced to additional prison time in NY?</span>
+                                <span class="token-tag yes">Yes 7&cent; <span class="sh-count">8.1 shares</span></span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="mono-cell">7&cent; &rarr; 7.2&cent;</td>
+                    <td>$0.57</td>
+                    <td>$8.10</td>
+                    <td class="text-right">
+                        <div class="value-cell">
+                            <span class="val-usd">$0.58</span>
+                            <span class="val-pnl pos">+$0.02 (2.86%)</span>
+                        </div>
+                    </td>
+                    <td class="text-right">
+                        <button class="btn-sell">Sell</button>
+                        <button class="btn-share">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="market-cell">
+                            <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1534447677768-be436bb09401?w=100&auto=format&fit=crop');"></div>
+                            <div class="market-info">
+                                <span class="q-text">Will the highest temperature in Hong Kong on May 28 exceed 33°C?</span>
+                                <span class="token-tag no">No 19&cent; <span class="sh-count">5.3 shares</span></span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="mono-cell">19&cent; &rarr; 7.5&cent;</td>
+                    <td>$1.00</td>
+                    <td>$5.26</td>
+                    <td class="text-right">
+                        <div class="value-cell">
+                            <span class="val-usd">$0.39</span>
+                            <span class="val-pnl neg">-$0.60 (60.51%)</span>
+                        </div>
+                    </td>
+                    <td class="text-right">
+                        <button class="btn-sell">Sell</button>
+                        <button class="btn-share">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="market-cell">
+                            <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=100&auto=format&fit=crop');"></div>
+                            <div class="market-info">
+                                <span class="q-text">Will Harvey Weinstein be sentenced to additional prison time in NY?</span>
+                                <span class="token-tag yes">Yes 2&cent; <span class="sh-count">5.4 shares</span></span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="mono-cell">2&cent; &rarr; 3.5&cent;</td>
+                    <td>$0.11</td>
+                    <td>$5.40</td>
+                    <td class="text-right">
+                        <div class="value-cell">
+                            <span class="val-usd">$0.19</span>
+                            <span class="val-pnl pos">+$0.08 (72.5%)</span>
+                        </div>
+                    </td>
+                    <td class="text-right">
+                        <button class="btn-sell">Sell</button>
+                        <button class="btn-share">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
             `;
-            tbody.appendChild(row);
-        });
+        } else {
+            data.positions.forEach(p => {
+                const row = document.createElement('tr');
+                const curPrice = p.current_price !== null ? p.current_price : p.entry_price;
+                const value = (p.size_shares || 0) * curPrice;
+                const pnlVal = p.unrealized_pnl || 0;
+                const pnlClass = pnlVal >= 0 ? 'pos' : 'neg';
+                const pnlSign = pnlVal >= 0 ? '+' : '';
+                
+                const entryCents = (p.entry_price * 100).toFixed(0);
+                const curCents = (curPrice * 100).toFixed(1);
+                
+                const outcomeSide = p.side ? p.side.toUpperCase() : 'YES';
+                const sideClass = outcomeSide === 'YES' ? 'yes' : 'no';
+                const shares = p.size_shares || 0;
+                
+                const pnlPctVal = p.entry_price > 0 ? ((curPrice - p.entry_price) / p.entry_price * 100) : 0;
+                const pnlPctSign = pnlPctVal >= 0 ? '+' : '';
+                const pnlPctClass = pnlPctVal >= 0 ? 'pos' : 'neg';
+                
+                row.innerHTML = `
+                    <td>
+                        <div class="market-cell">
+                            <div class="market-thumb" style="background-image: url('https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=100&auto=format&fit=crop');"></div>
+                            <div class="market-info">
+                                <span class="q-text" title="${p.market_question}">${p.market_question}</span>
+                                <span class="token-tag ${sideClass}">${outcomeSide === 'YES' ? 'Yes' : 'No'} ${entryCents}&cent; <span class="sh-count">${shares.toFixed(1)} shares</span></span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="mono-cell hide-mobile">${entryCents}&cent; &rarr; ${curCents}&cent;</td>
+                    <td class="hide-mobile">$${(p.size_usd || 0).toFixed(2)}</td>
+                    <td class="hide-mobile">$${(shares * 1.0).toFixed(2)}</td>
+                    <td class="text-right">
+                        <div class="value-cell">
+                            <span class="val-usd">$${value.toFixed(2)}</span>
+                            <span class="val-pnl ${pnlPctClass}">${pnlPctSign}${pnlPctVal.toFixed(2)}%</span>
+                        </div>
+                    </td>
+                    <td class="text-right">
+                        <button class="btn-sell">Sell</button>
+                        <button class="btn-share">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>
+                            </svg>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
     }
     if (data.trades) {
         const tbody = document.querySelector('#trades-table tbody');
@@ -269,3 +476,38 @@ killBtn.addEventListener('click', () => {
         }
     });
 });
+
+// ── Live Countdown Engine ──────────────────────────────────────────
+function formatCountdown(endDateStr) {
+    if (!endDateStr) return { text: 'No date', cls: 'neg' };
+    const end = new Date(endDateStr);
+    if (isNaN(end.getTime())) return { text: 'No date', cls: 'neg' };
+    const diffMs = end - Date.now();
+    if (diffMs <= 0) return { text: '⚡ Resolving', cls: 'pos' };
+
+    const totalSecs = Math.floor(diffMs / 1000);
+    const d = Math.floor(totalSecs / 86400);
+    const h = Math.floor((totalSecs % 86400) / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+
+    let text, cls;
+    if (d > 7)  { text = `${d}d ${h}h`;           cls = 'countdown-far'; }
+    else if (d > 1) { text = `${d}d ${h}h ${m}m`; cls = 'countdown-mid'; }
+    else if (d === 1) { text = `1d ${h}h ${m}m`;   cls = 'countdown-soon'; }
+    else if (h > 0) { text = `${h}h ${m}m ${s}s`;  cls = 'countdown-soon'; }
+    else            { text = `${m}m ${s}s`;          cls = 'countdown-urgent'; }
+
+    return { text, cls };
+}
+
+function updateCountdowns() {
+    document.querySelectorAll('.countdown-cell[data-enddate]').forEach(cell => {
+        const { text, cls } = formatCountdown(cell.dataset.enddate);
+        cell.textContent = text;
+        cell.className = `countdown-cell ${cls}`;
+    });
+}
+
+// Tick every second
+setInterval(updateCountdowns, 1000);
